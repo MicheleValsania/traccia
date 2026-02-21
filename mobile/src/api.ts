@@ -1,6 +1,15 @@
 import { CaptureResponse, DraftLot, TransformResponse } from "./types";
 
-export const API_BASE = "http://127.0.0.1:8000/api";
+function buildApiBase(): string {
+  const raw = (process.env.EXPO_PUBLIC_API_BASE || "").trim();
+  if (!raw) {
+    return "http://127.0.0.1:8000/api";
+  }
+  const normalized = raw.replace(/\/+$/, "");
+  return normalized.endsWith("/api") ? normalized : `${normalized}/api`;
+}
+
+export const API_BASE = buildApiBase();
 
 function withAuth(token: string, init?: RequestInit): RequestInit {
   return {

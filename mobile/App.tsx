@@ -2,7 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text } from "react-native";
 
-import { loginToken, fetchDrafts } from "./src/api";
+import { fetchDrafts, loginToken } from "./src/api";
 import { AuthCard } from "./src/components/AuthCard";
 import { CaptureScreen } from "./src/screens/CaptureScreen";
 import { DraftsScreen } from "./src/screens/DraftsScreen";
@@ -20,7 +20,7 @@ const TABS: Array<{ key: TabKey; label: string }> = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>("capture");
-  const [siteCode, setSiteCode] = useState("PARIS01");
+  const [siteCode, setSiteCode] = useState("TOURNELS01");
   const [supplierName, setSupplierName] = useState("");
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
@@ -102,9 +102,7 @@ export default function App() {
         ) : null}
 
         {activeTab === "lifecycle" ? <LifecycleScreen token={token} setError={setError} /> : null}
-
         {activeTab === "reports" ? <ReportsScreen siteCode={siteCode} token={token} /> : null}
-
         {error ? <Text style={appStyles.error}>{error}</Text> : null}
       </ScrollView>
     </SafeAreaView>

@@ -22,13 +22,30 @@ type Props = {
 };
 
 export function CaptureScreen(props: Props) {
+  async function submitPickedAsset(asset: ImagePicker.ImagePickerAsset) {
+    const fileBase64 = asset.base64;
+    if (!fileBase64) {
+      props.setError("Immagine non valida: base64 assente.");
+      return;
+    }
+    const body = await captureLabelPhoto({
+      token: props.token,
+      siteCode: props.siteCode,
+      supplierName: props.supplierName,
+      fileName: asset.fileName || `capture_${Date.now()}.jpg`,
+      fileBase64,
+    });
+    props.setCaptureResult(body);
+    await props.refreshDrafts();
+  }
+
   async function captureLabel() {
     props.setError("");
     props.setLoading(true);
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        props.setError("Permesso camera negato.");
+        props.setError("Camera non disponibile su emulatore. Usa 'Scegli dalla galleria'.");
         return;
       }
       const shot = await ImagePicker.launchCameraAsync({
@@ -40,15 +57,32 @@ export function CaptureScreen(props: Props) {
         return;
       }
       const asset = shot.assets[0];
-      const body = await captureLabelPhoto({
-        token: props.token,
-        siteCode: props.siteCode,
-        supplierName: props.supplierName,
-        fileName: asset.fileName || `capture_${Date.now()}.jpg`,
-        fileBase64: asset.base64,
+      await submitPickedAsset(asset);
+    } catch (e) {
+      props.setError(e instanceof Error ? e.message : "Errore sconosciuto.");
+    } finally {
+      props.setLoading(false);
+    }
+  }
+
+  async function pickFromGallery() {
+    props.setError("");
+    props.setLoading(true);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        props.setError("Permesso galleria negato.");
+        return;
+      }
+      const picked = await ImagePicker.launchImageLibraryAsync({
+        quality: 0.8,
+        base64: true,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
       });
-      props.setCaptureResult(body);
-      await props.refreshDrafts();
+      if (picked.canceled || !picked.assets[0]) {
+        return;
+      }
+      await submitPickedAsset(picked.assets[0]);
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore sconosciuto.");
     } finally {
@@ -65,6 +99,9 @@ export function CaptureScreen(props: Props) {
         <TextInput style={appStyles.input} value={props.supplierName} onChangeText={props.setSupplierName} />
         <Pressable style={appStyles.button} onPress={captureLabel} disabled={props.loading || !props.token}>
           <Text style={appStyles.buttonText}>{props.loading ? "Elaborazione..." : "Scatta foto etichetta"}</Text>
+        </Pressable>
+        <Pressable style={appStyles.buttonSecondary} onPress={pickFromGallery} disabled={props.loading || !props.token}>
+          <Text style={appStyles.buttonSecondaryText}>{props.loading ? "Elaborazione..." : "Scegli dalla galleria"}</Text>
         </Pressable>
       </View>
 

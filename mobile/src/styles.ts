@@ -22,6 +22,8 @@ export const appStyles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: "#b8cbcb", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   button: { backgroundColor: "#0c6b65", paddingVertical: 11, borderRadius: 8, marginTop: 8 },
   buttonText: { color: "white", textAlign: "center", fontWeight: "600" },
+  buttonSecondary: { backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#0c6b65", paddingVertical: 11, borderRadius: 8 },
+  buttonSecondaryText: { color: "#0c6b65", textAlign: "center", fontWeight: "600" },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: "#0f2e2e" },
   linkButton: { paddingVertical: 6 },
   linkText: { color: "#0e6eb8", fontWeight: "600" },

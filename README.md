@@ -76,6 +76,14 @@ npm install
 npm run start
 ```
 
+Configura endpoint backend per telefono fisico creando `mobile/.env`:
+
+```dotenv
+EXPO_PUBLIC_API_BASE=http://<IP_DEL_TUO_PC>:8000
+```
+
+Nota: `EXPO_PUBLIC_API_BASE` puo essere con o senza `/api`, l'app normalizza automaticamente.
+
 ### Flusso UI implementato
 
 - Login token
