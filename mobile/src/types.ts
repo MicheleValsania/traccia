@@ -1,0 +1,38 @@
+export type OcrWarning = {
+  code: string;
+  severity: string;
+  message: string;
+};
+
+export type CaptureResponse = {
+  lot_id: string;
+  internal_lot_code: string;
+  draft_status: string;
+  ocr_result: Record<string, unknown>;
+  ocr_warnings: OcrWarning[];
+  product_suggestions: Array<{ id: string; title: string; category: string }>;
+  asset: { drive_file_id: string; drive_link: string };
+};
+
+export type DraftLot = {
+  id: string;
+  internal_lot_code: string;
+  supplier_name: string;
+  supplier_lot_code: string;
+  dlc_date: string;
+  quantity_value: string;
+  quantity_unit: string;
+  status: string;
+  ocr_warnings: OcrWarning[];
+  suggestions: Array<{ id: string; title: string; category: string }>;
+};
+
+export type TransformResponse = {
+  source_lot_id: string;
+  source_status: string;
+  derived_lot_id: string;
+  derived_internal_lot_code: string;
+  action: string;
+};
+
+export type TabKey = "capture" | "drafts" | "lifecycle" | "reports";

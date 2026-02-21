@@ -1,0 +1,318 @@
+Perfetto.
+Adesso facciamo quello che fanno i team seri prima di scrivere codice: **freeze del contesto + documento architetturale chiaro**.
+
+Hai:
+
+* ✅ Fiches recettes → Knowledge layer stabile
+* ✅ Export contract v1.1 → contratto dati definito
+* ❌ App tracciabilità → ancora solo progetto
+
+Quindi sì, torniamo al punto zero e costruiamo **documentazione solida** su cui sviluppare.
+
+---
+
+# 📘 DOCUMENTO DI BASE — APP TRACCIABILITÀ v0.1
+
+(Questo puoi copiarlo in un file tipo `traceability_architecture.md`)
+
+---
+
+# 1️⃣ Visione generale
+
+## Obiettivo
+
+Costruire un’app mobile-first per la gestione operativa HACCP e tracciabilità lotti, integrata con:
+
+* Export v1.1 da Fiches Recettes
+* OCR Claude API
+* Google Drive per storage immagini
+* Backend Django + PostgreSQL
+
+---
+
+# 2️⃣ Separazione Architetturale
+
+```text
+[FICHES RECETTES]
+  Knowledge Layer
+  - haccp_profiles
+  - storage_profiles
+  - label_hints
+        ↓ export v1.1
+[TRACEABILITY BACKEND - Django]
+  Rules Engine + State
+        ↓
+[Mobile App - React Native]
+  Capture / Lifecycle / Alerts
+```
+
+---
+
+# 3️⃣ Scope funzionale dell’app di tracciabilità
+
+## Deve fare
+
+### A. Creazione lotto (modalità rapida)
+
+* Scatto foto etichetta
+* Upload su Drive
+* OCR Claude:
+
+  * lotto
+  * DLC
+  * peso
+  * prodotto suggerito
+* Creazione draft lotto
+* Conferma operatore
+* Generazione alert automatici
+
+---
+
+### B. Modalità Lifecycle (chef/responsabile)
+
+* Selezione lotto
+* Scelta trasformazione:
+
+  * VACUUM_PACKING
+  * FREEZING
+  * SOUS_VIDE_COOK
+  * THAWING
+  * OPENED
+* Nuova DLC calcolata da:
+
+  * storage_profiles (chef_defined)
+  * oppure default categoria
+* Creazione nuovo lotto derivato
+* Log evento (audit trail)
+
+---
+
+### C. Verifica documentale (tablet/PC)
+
+* Upload bolla/fattura
+* OCR documento
+* Matching con lotti creati
+* Conferma manuale
+
+---
+
+### D. Alert
+
+* D-3
+* D-1
+* Scaduto
+* Notifica in-app
+* Dashboard scadenze
+
+---
+
+### E. Stampa etichette
+
+* Generazione PDF
+* Template:
+
+  * RAW_MATERIAL
+  * PREPARATION
+  * TRANSFORMATION
+* QR code per lotto
+
+---
+
+# 4️⃣ Modello Dati (State Layer)
+
+## Entità principali
+
+### Site
+
+* id
+* name
+
+### User
+
+* id
+* role
+* site_id
+
+### Product (importato da fiches)
+
+* id (UUID da fiche)
+* title
+* allergens
+* storage_profiles
+* label_hints
+
+### Lot
+
+* id
+* product_id
+* internal_lot_code
+* supplier_lot_code
+* quantity_value
+* quantity_unit
+* received_at
+* production_date
+* dlc_date
+* status:
+
+  * ACTIVE
+  * TRANSFORMED
+  * CONSUMED
+  * DISCARDED
+
+### LotEvent
+
+* id
+* lot_id
+* type:
+
+  * CREATED
+  * TRANSFORMED
+  * FREEZING
+  * THAWING
+  * OPENED
+  * etc
+* created_at
+* metadata JSON
+
+### Asset
+
+* id
+* drive_file_id
+* type:
+
+  * PHOTO_LABEL
+  * PHOTO_PRODUCT
+  * DELIVERY_NOTE
+* lot_id (nullable)
+
+### Alert
+
+* id
+* lot_id
+* trigger_date
+* status:
+
+  * PENDING
+  * SENT
+  * ACKED
+
+---
+
+# 5️⃣ AI Integration (Claude)
+
+Claude viene usato per:
+
+### 1) OCR Label
+
+Input: foto etichetta
+Output strutturato:
+
+```json
+{
+  "supplier_lot_code": "",
+  "dlc_date": "",
+  "weight": "",
+  "product_guess": ""
+}
+```
+
+### 2) OCR Documento
+
+Input: PDF/foto bolla
+Output:
+
+* lista righe prodotto
+* quantità
+* suggerimenti match
+
+### 3) Supporto decisionale
+
+Se storage_profile mancante:
+
+* suggerire shelf_life coerente
+
+---
+
+# 6️⃣ Architettura Tecnica
+
+## Backend
+
+* Django
+* Django REST Framework
+* PostgreSQL
+* Celery (task OCR async)
+* Redis (queue)
+* Google Drive API
+* Claude API
+
+## Mobile
+
+* React Native (Expo)
+* SQLite locale per offline queue
+* Sync engine
+
+---
+
+# 7️⃣ Fasi di sviluppo (roadmap)
+
+## Fase 1 — MVP Lotti manuali
+
+* Import export v1.1
+* CRUD lotti manuali
+* Alert scadenze
+* Dashboard base
+
+## Fase 2 — OCR + Drive
+
+* Upload foto
+* Claude OCR
+* Draft lot auto-compilato
+
+## Fase 3 — Lifecycle
+
+* Trasformazioni
+* Nuova DLC automatica
+* Audit trail
+
+## Fase 4 — Document matching
+
+## Fase 5 — Label printing
+
+---
+
+# 8️⃣ Decisioni da prendere ora
+
+1. Multi-site già da MVP o single-site?
+2. Offline support subito o fase 2?
+3. Autenticazione:
+
+   * JWT custom?
+   * Django simplejwt?
+4. Hosting:
+
+   * VPS?
+   * Railway?
+   * Docker su server tuo?
+
+---
+
+# 🎯 Punto chiave
+
+La cosa importante è questa:
+
+La tracciabilità è uno STATE ENGINE.
+Le fiches sono KNOWLEDGE BASE.
+
+Non dobbiamo più confondere i due livelli.
+
+---
+
+Se vuoi, nel prossimo messaggio possiamo:
+
+* Disegnare lo schema DB Django definitivo
+  oppure
+* Definire l’API REST iniziale
+  oppure
+* Disegnare le schermate mobile con flussi reali
+
+Dimmi dove vuoi andare adesso e costruiamo in modo metodico.
