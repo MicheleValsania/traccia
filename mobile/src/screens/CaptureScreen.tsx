@@ -95,7 +95,13 @@ export function CaptureScreen(props: Props) {
     <>
       <View style={appStyles.card}>
         <Text style={appStyles.label}>Site code</Text>
-        <TextInput style={appStyles.input} value={props.siteCode} onChangeText={props.setSiteCode} autoCapitalize="characters" />
+        <TextInput
+          style={appStyles.input}
+          value={props.siteCode}
+          onChangeText={props.setSiteCode}
+          autoCapitalize="characters"
+          placeholder="MAIN"
+        />
         <Text style={appStyles.label}>Fornitore (opzionale)</Text>
         <TextInput style={appStyles.input} value={props.supplierName} onChangeText={props.setSupplierName} />
         <Pressable style={appStyles.button} onPress={captureLabel} disabled={props.loading || !props.token}>

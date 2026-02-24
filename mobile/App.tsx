@@ -20,7 +20,7 @@ const TABS: Array<{ key: TabKey; label: string }> = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>("capture");
-  const [siteCode, setSiteCode] = useState("TOURNELS01");
+  const [siteCode, setSiteCode] = useState("MAIN");
   const [supplierName, setSupplierName] = useState("");
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");

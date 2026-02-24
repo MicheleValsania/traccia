@@ -12,9 +12,11 @@ from .views import (
     MeView,
     SiteListCreateView,
     TokenLoginView,
+    debug_env,
 )
 
 urlpatterns = [
+    path("debug/env", debug_env, name="debug-env"),
     path("auth/token", TokenLoginView.as_view(), name="auth-token"),
     path("auth/me", MeView.as_view(), name="auth-me"),
     path("sites", SiteListCreateView.as_view(), name="site-list-create"),

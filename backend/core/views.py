@@ -49,7 +49,17 @@ from .services import (
     upload_to_drive,
 )
 
+# In core/views.py, aggiungi questa view temporanea
+from django.http import JsonResponse
+import os
 
+def debug_env(request):
+    return JsonResponse({
+        "CLAUDE_ENABLED": os.getenv("CLAUDE_ENABLED", "NOT SET"),
+        "ANTHROPIC_API_KEY": "SET" if os.getenv("ANTHROPIC_API_KEY") else "NOT SET",
+        "ANTHROPIC_MODEL": os.getenv("ANTHROPIC_MODEL", "NOT SET"),
+    })
+    
 class SiteListCreateView(generics.ListCreateAPIView):
     queryset = Site.objects.all().order_by("code")
     serializer_class = SiteSerializer
