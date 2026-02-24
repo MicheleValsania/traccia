@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import os
 import re
 import time
@@ -21,6 +22,8 @@ try:
     from anthropic import Anthropic
 except Exception:  # pragma: no cover
     Anthropic = None
+
+logger = logging.getLogger(__name__)
 
 FR_MONTHS = {
     "janvier": 1,
@@ -141,6 +144,11 @@ def _extract_first_json(text: str) -> dict[str, Any]:
     match = re.search(r"\{.*\}", text, flags=re.DOTALL)
     if not match:
         return {}
+    try:
+        parsed = json.loads(match.group(0))
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
 
 
 def build_ocr_warnings(ocr_result: dict[str, Any]) -> list[dict[str, str]]:
@@ -190,11 +198,6 @@ def build_ocr_warnings(ocr_result: dict[str, Any]) -> list[dict[str, str]]:
             {"code": "MISSING_PRODUCT_GUESS", "severity": "warning", "message": "Prodotto suggerito non disponibile."}
         )
     return warnings
-    try:
-        parsed = json.loads(match.group(0))
-        return parsed if isinstance(parsed, dict) else {}
-    except Exception:
-        return {}
 
 
 def upload_to_drive_stub(file_name: str, binary: bytes) -> dict[str, str]:
@@ -263,12 +266,18 @@ def run_label_ocr_stub(file_name: str) -> dict[str, Any]:
 
 def run_label_ocr(file_name: str, binary: bytes, mime_type: str = "image/jpeg") -> dict[str, Any]:
     if os.getenv("CLAUDE_ENABLED", "0") != "1" or Anthropic is None:
-        return run_label_ocr_stub(file_name=file_name)
+        result = run_label_ocr_stub(file_name=file_name)
+        result["provider"] = "stub"
+        result["fallback_reason"] = "claude_disabled_or_missing_sdk"
+        return result
 
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
     if not api_key:
-        return run_label_ocr_stub(file_name=file_name)
+        result = run_label_ocr_stub(file_name=file_name)
+        result["provider"] = "stub"
+        result["fallback_reason"] = "missing_api_key"
+        return result
 
     attempts = int(os.getenv("CLAUDE_RETRY_ATTEMPTS", "3"))
     backoff = float(os.getenv("CLAUDE_RETRY_BASE_SLEEP_S", "0.8"))
@@ -323,9 +332,20 @@ def run_label_ocr(file_name: str, binary: bytes, mime_type: str = "image/jpeg") 
             "product_guess": raw_guess[:120],
             "confidence": 0.8,
             "ai_suggested": True,
+            "provider": "claude",
         }
-    except Exception:
-        return run_label_ocr_stub(file_name=file_name)
+    except Exception as exc:
+        logger.exception(
+            "OCR fallback to stub. file_name=%s mime_type=%s model=%s error=%s",
+            file_name,
+            mime_type,
+            model,
+            exc,
+        )
+        result = run_label_ocr_stub(file_name=file_name)
+        result["provider"] = "stub"
+        result["fallback_reason"] = str(exc)[:400]
+        return result
 
 
 def parse_date_or_none(value: str) -> date | None:

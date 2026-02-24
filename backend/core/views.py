@@ -137,8 +137,9 @@ class CaptureLabelView(APIView):
         except Exception:
             return Response({"detail": "file_b64 is not valid base64."}, status=status.HTTP_400_BAD_REQUEST)
 
-        drive = upload_to_drive(file_name=data["file_name"], binary=binary, mime_type="image/jpeg")
-        ocr_raw = run_label_ocr(file_name=data["file_name"], binary=binary, mime_type="image/jpeg")
+        mime_type = data.get("file_mime_type", "image/jpeg") or "image/jpeg"
+        drive = upload_to_drive(file_name=data["file_name"], binary=binary, mime_type=mime_type)
+        ocr_raw = run_label_ocr(file_name=data["file_name"], binary=binary, mime_type=mime_type)
         ocr = OcrResultSerializer(data=ocr_raw)
         ocr.is_valid(raise_exception=True)
         warnings = build_ocr_warnings(ocr.validated_data)
@@ -162,7 +163,7 @@ class CaptureLabelView(APIView):
             drive_file_id=drive["drive_file_id"],
             drive_link=drive["drive_link"],
             sha256=drive["sha256"],
-            mime_type="image/jpeg",
+            mime_type=mime_type,
         )
         OcrJob.objects.create(
             site=site, asset=asset, lot=lot, status=OcrJobStatus.DONE, result=ocr.validated_data
@@ -183,6 +184,7 @@ class CaptureLabelView(APIView):
                 "internal_lot_code": lot.internal_lot_code,
                 "draft_status": lot.status,
                 "ocr_result": ocr.validated_data,
+                "ocr_provider": ocr.validated_data.get("provider", "unknown"),
                 "ocr_warnings": warnings,
                 "product_suggestions": suggestions,
                 "asset": {"drive_file_id": asset.drive_file_id, "drive_link": asset.drive_link},

@@ -15,6 +15,7 @@ class DraftFromPhotoSerializer(serializers.Serializer):
     site_code = serializers.CharField()
     supplier_name = serializers.CharField(required=False, allow_blank=True)
     file_name = serializers.CharField()
+    file_mime_type = serializers.CharField(required=False, allow_blank=True, default="image/jpeg")
     file_b64 = serializers.CharField(help_text="Base64-encoded image file.")
 
 
@@ -138,6 +139,8 @@ class OcrResultSerializer(serializers.Serializer):
     product_guess = serializers.CharField(required=False, allow_blank=True)
     confidence = serializers.FloatField(required=False)
     ai_suggested = serializers.BooleanField(required=False)
+    provider = serializers.CharField(required=False, allow_blank=True)
+    fallback_reason = serializers.CharField(required=False, allow_blank=True)
 
     def validated_dlc_date(self):
         return parse_date_or_none(self.validated_data.get("dlc_date", ""))

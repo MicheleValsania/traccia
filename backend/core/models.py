@@ -251,7 +251,11 @@ class AuditLog(models.Model):
         ordering = ["happened_at", "id"]
 
     def save(self, *args, **kwargs):
-        if self.pk:
+        # UUID primary keys are populated before first save, so checking only
+        # self.pk would incorrectly reject inserts. Reject only real updates.
+        if not self._state.adding and self.pk:
+            raise ValidationError("AuditLog is immutable and cannot be updated.")
+        if self._state.adding and self.pk and AuditLog.objects.filter(pk=self.pk).exists():
             raise ValidationError("AuditLog is immutable and cannot be updated.")
 
         previous = AuditLog.objects.order_by("-happened_at", "-id").first()

@@ -39,12 +39,14 @@ export async function captureLabelPhoto(params: {
   siteCode: string;
   supplierName: string;
   fileName: string;
+  fileMimeType: string;
   fileBase64: string;
 }): Promise<CaptureResponse> {
   const payload = {
     site_code: params.siteCode,
     supplier_name: params.supplierName,
     file_name: params.fileName,
+    file_mime_type: params.fileMimeType,
     file_b64: params.fileBase64,
   };
   const response = await fetch(

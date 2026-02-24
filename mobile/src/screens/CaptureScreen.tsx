@@ -33,6 +33,7 @@ export function CaptureScreen(props: Props) {
       siteCode: props.siteCode,
       supplierName: props.supplierName,
       fileName: asset.fileName || `capture_${Date.now()}.jpg`,
+      fileMimeType: asset.mimeType || "image/jpeg",
       fileBase64,
     });
     props.setCaptureResult(body);
@@ -112,6 +113,8 @@ export function CaptureScreen(props: Props) {
           <Text>Stato: {props.captureResult.draft_status}</Text>
           <Text>DLC OCR: {String(props.captureResult.ocr_result.dlc_date || "-")}</Text>
           <Text>Fornitore lotto OCR: {String(props.captureResult.ocr_result.supplier_lot_code || "-")}</Text>
+          <Text>Peso OCR: {String(props.captureResult.ocr_result.weight || "-")}</Text>
+          <Text>Prodotto OCR: {String(props.captureResult.ocr_result.product_guess || "-")}</Text>
           <Text style={appStyles.label}>Warning OCR</Text>
           <WarningList warnings={props.captureResult.ocr_warnings || []} />
           <Text style={appStyles.label}>Suggerimenti prodotto</Text>
