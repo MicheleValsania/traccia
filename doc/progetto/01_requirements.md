@@ -1,63 +1,91 @@
-Traceability App — Client Requirements (Michele)
-1. Visione
+Traceability App - Client Requirements (Michele)
 
-Sviluppare un’applicazione mobile-first per la gestione operativa della tracciabilità HACCP in ristorante/cucina professionale, integrata con:
+1. Vision
 
-Export v1.1 da Fiches Recettes (knowledge layer)
+Build a mobile-first application for HACCP traceability operations in professional kitchens, integrated with:
 
-Claude API per OCR e supporto decisionale
+- Export v1.1 from Fiches Recettes (knowledge layer)
+- Claude API for OCR and decision support
+- Google Drive for photo storage
+- Django + PostgreSQL backend
 
-Google Drive per storage immagini
+2. Main goals
 
-Backend Django + PostgreSQL
+- Create lots quickly from label photos
+- Automate lot and DLC extraction with AI
+- Manage lifecycle transformations
+- Generate automatic expiry alerts
+- Keep full audit trail
+- Keep operations linear and fast for kitchen staff
 
-2. Obiettivi principali
+3. Operational modes
 
-Creare lotti rapidamente tramite foto etichetta
+Mode A - Immediate (Photo/Analysis)
 
-Automatizzare riconoscimento lotto/DLC tramite AI
+- Take photo
+- Automatic upload to Google Drive (mandatory)
+- Automatic OCR extraction
+- Draft creation
+- Immediate operator validation
+- Optional lifecycle transformation
+- Optional label generation/printing
 
-Gestire ciclo di vita prodotto (trasformazioni)
+Mode B - Batch Capture
 
-Generare alert automatici scadenza
+- Take multiple photos quickly
+- Automatic upload to Google Drive (mandatory)
+- Automatic OCR extraction in backend
+- Deferred draft validation from draft queue
 
-Gestire matching con bolle/fatture
+Note: There is no "photo-only without analysis" mode. Analysis always runs.
 
-Stampare etichette conformi HACCP
+4. Functional requirements (current scope)
 
-Garantire audit trail completo
+- Mobile capture with camera or gallery
+- OCR extraction payload fields:
+  - supplier_lot_code
+  - dlc_date
+  - weight
+  - product_guess
+- OCR warnings (non-blocking)
+- Draft list and validation
+- Lifecycle transform endpoint
+- Reports by period/supplier/category (CSV + PDF)
+- Alerts D-3, D-2, D-1, expired
 
-3. Modalità operative
-Modalità 1 — Capture Rapido
+5. Non-functional requirements
 
-Foto
+- Multi-site support (progressive rollout)
+- Role-based access
+- Immutable audit trail
+- UTC timestamps + site timezone (`Europe/Paris`)
+- Resilient behavior with incomplete OCR data
+- No runtime dependency on Fiches app (import-only boundary)
 
-OCR
+6. UX/Process constraints
 
-Creazione draft lotto
+- Keep operator flow minimal in kitchen
+- Prefer one-tap actions where possible
+- Tablet and desktop must support fast validation and transformation
+- Mobile remains the primary capture channel
 
-Conferma operatore
+7. Fiches handoff alignment (2026-02-24)
 
-Modalità 2 — Lifecycle
+Source: `C:\Users\user\fiches-recettes\traceability_handoff.json`
 
-Selezione lotto
-
-Scelta trasformazione
-
-Calcolo nuova DLC
-
-Generazione nuovo lotto
-
-4. Requisiti non funzionali
-
-Multi-sede
-
-Ruoli utente
-
-Warning non bloccanti
-
-Audit completo
-
-Nessuna dipendenza operativa da Fiches (solo import knowledge)
-
-Sistema resiliente a dati incompleti
+- Dataset size from source system: about 95 fiches
+- Source status: stable, with quality backlog
+- Known data gaps to handle in ingest:
+  - partial ingredient-to-product mapping coverage
+  - residual encoding artifacts on a subset of records
+  - PDF not suitable as primary machine source
+- Ingest policy:
+  - strict validation for required arrays/types
+  - reject malformed IDs and unparseable dates
+  - product resolution strategy:
+    - primary key: `supplier_product_id`
+    - fallback: `supplier_id + normalized product name` with review queue
+- Traceability acceptance targets:
+  - v1.1 ingest success rate >95%
+  - auto ingredient-product match rate >85%
+  - price coverage >80% on mapped ingredients

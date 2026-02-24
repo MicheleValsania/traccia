@@ -3,6 +3,7 @@
 Implementazione iniziale allineata alle decisioni di progetto:
 
 - Fase 1 subito operativa: `foto -> Drive -> OCR -> draft -> convalida su tablet/PC`
+- Due modalita operative previste: `Immediato` e `Batch` (analisi sempre attiva)
 - Report per `periodo`, `fornitore`, `categoria` con export `CSV + PDF`
 - Alert scadenza: `D-3`, `D-2`, `D-1`, `scaduto`
 - Timezone: `Europe/Paris`
@@ -15,6 +16,7 @@ Implementazione iniziale allineata alle decisioni di progetto:
 
 - `backend/`: Django + DRF (API e regole Fase 1)
 - `mobile/`: Expo React Native (mobile-first capture rapido)
+- upstream handoff reference: `C:\Users\user\fiches-recettes\traceability_handoff.json`
 
 ## Backend - avvio locale
 
@@ -23,11 +25,31 @@ cd backend
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+Copy-Item .env.example .env
 python manage.py makemigrations core
 python manage.py migrate
 python manage.py bootstrap_admin --username admin --password ChangeMe123! --site-code PARIS01 --site-name "Cucina Paris"
 python manage.py runserver
 ```
+
+Il backend ora carica automaticamente variabili da `backend/.env`.
+
+### Import envelope da fiches-recettes (handoff script)
+
+Script upstream: `C:\Users\user\fiches-recettes\scripts\import-fiches-envelope.ps1`
+
+Uso consigliato:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Users\user\fiches-recettes\scripts\import-fiches-envelope.ps1 -Path "C:\path\file.json" -ApiBase "http://localhost:3001/api"
+```
+
+Note operative:
+
+- lettura UTF-8 strict
+- rilevazione testo sospetto (override con `-AllowSuspectText` solo se necessario)
+- invio JSON con `charset=utf-8`
+- script pensato per API fiches dedicate (`.../fiches`), non per `POST /api/import/fiches` del backend traceability
 
 ### Endpoint principali (Fase 1)
 
@@ -54,10 +76,11 @@ python manage.py runserver
   - `GOOGLE_DRIVE_RETRY_BASE_SLEEP_S=0.6`
   - `CLAUDE_ENABLED=1`
   - `ANTHROPIC_API_KEY=<key>`
-  - `ANTHROPIC_MODEL=claude-3-5-sonnet-latest`
+  - `ANTHROPIC_MODEL=claude-haiku-4-5-20251001`
   - `CLAUDE_RETRY_ATTEMPTS=3`
   - `CLAUDE_RETRY_BASE_SLEEP_S=0.8`
 - In mancanza di env validi, il sistema usa fallback stub senza interrompere il flusso operativo
+- Drive upload e OCR devono restare automatici nel flusso di capture
 - OCR normalizza automaticamente:
   - date francesi (`DD/MM/YYYY`, `DD-MM-YYYY`, `DD mois YYYY`) -> `YYYY-MM-DD`
   - peso (`2,5 kg`, `500gr`) -> formato coerente
@@ -83,6 +106,7 @@ EXPO_PUBLIC_API_BASE=http://<IP_DEL_TUO_PC>:8000
 ```
 
 Nota: `EXPO_PUBLIC_API_BASE` puo essere con o senza `/api`, l'app normalizza automaticamente.
+Nota sicurezza: chiavi API sensibili vanno solo in `backend/.env`, non in `mobile/.env`.
 
 ### Flusso UI implementato
 
@@ -144,6 +168,7 @@ Nota: `EXPO_PUBLIC_API_BASE` puo essere con o senza `/api`, l'app normalizza aut
   "site_code": "PARIS01",
   "supplier_name": "Fornitore A",
   "file_name": "lot_ab12_2026-03-19.jpg",
+  "file_mime_type": "image/jpeg",
   "file_b64": "<base64>"
 }
 ```

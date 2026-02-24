@@ -6,3 +6,4 @@ python-dateutil>=2.9,<3.0
 anthropic>=0.45.0,<1.0
 google-api-python-client>=2.157.0,<3.0
 google-auth>=2.37.0,<3.0
+python-dotenv>=1.0.1,<2.0
