@@ -1,3 +1,4 @@
+
 # Compatibility Contract (Fiches <-> Traceability)
 
 ## Obiettivo
