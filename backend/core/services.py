@@ -212,17 +212,24 @@ def upload_to_drive(file_name: str, binary: bytes, mime_type: str = "image/jpeg"
         return upload_to_drive_stub(file_name=file_name, binary=binary)
 
     service_account_path = os.getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE", "")
+    service_account_json = os.getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON", "")
     folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
-    if not service_account_path or not folder_id:
+    if (not service_account_path and not service_account_json) or not folder_id:
         return upload_to_drive_stub(file_name=file_name, binary=binary)
 
     attempts = int(os.getenv("GOOGLE_DRIVE_RETRY_ATTEMPTS", "3"))
     backoff = float(os.getenv("GOOGLE_DRIVE_RETRY_BASE_SLEEP_S", "0.6"))
 
     def _op():
-        creds = service_account.Credentials.from_service_account_file(
-            service_account_path, scopes=["https://www.googleapis.com/auth/drive.file"]
-        )
+        if service_account_json:
+            creds_info = json.loads(service_account_json)
+            creds = service_account.Credentials.from_service_account_info(
+                creds_info, scopes=["https://www.googleapis.com/auth/drive.file"]
+            )
+        else:
+            creds = service_account.Credentials.from_service_account_file(
+                service_account_path, scopes=["https://www.googleapis.com/auth/drive.file"]
+            )
         drive = build("drive", "v3", credentials=creds)
         media = MediaIoBaseUpload(BytesIO(binary), mimetype=mime_type, resumable=False)
         metadata = {"name": file_name, "parents": [folder_id]}
