@@ -35,4 +35,11 @@ export const appStyles = StyleSheet.create({
   warn: { color: "#9a5b00", fontSize: 12 },
   critical: { color: "#b00020", fontSize: 12, fontWeight: "700" },
   success: { color: "#0c6b65", fontWeight: "600" },
+  cameraPreview: {
+    width: "100%",
+    height: 360,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "#0b0f10",
+  },
 });
