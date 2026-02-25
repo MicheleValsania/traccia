@@ -3,7 +3,7 @@
 Implementazione iniziale allineata alle decisioni di progetto:
 
 - Fase 1 subito operativa: `foto -> Drive -> OCR -> draft -> convalida su tablet/PC`
-- Due modalita operative previste: `Immediato` e `Batch` (analisi sempre attiva)
+- Due modalita operative: `Modalita camera` (default rapido) e `Modalita flusso completo`
 - Report per `periodo`, `fornitore`, `categoria` con export `CSV + PDF`
 - Alert scadenza: `D-3`, `D-2`, `D-1`, `scaduto`
 - Timezone: `Europe/Paris`
@@ -67,10 +67,13 @@ Note operative:
 
 ### Note integrazione esterna
 
-- Upload Drive e OCR Claude sono implementati con stub in `backend/core/services.py`
+- Upload Drive e OCR Claude hanno fallback stub in `backend/core/services.py`
 - Se abiliti env di integrazione, vengono usati provider reali:
   - `GOOGLE_DRIVE_ENABLED=1`
-  - `GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE=<path-json>`
+  - `GOOGLE_DRIVE_OAUTH_CLIENT_ID=<client-id>`
+  - `GOOGLE_DRIVE_OAUTH_CLIENT_SECRET=<client-secret>`
+  - `GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN=<refresh-token>`
+  - `GOOGLE_DRIVE_OAUTH_TOKEN_URI=https://oauth2.googleapis.com/token`
   - `GOOGLE_DRIVE_FOLDER_ID=<folder-id>`
   - `GOOGLE_DRIVE_RETRY_ATTEMPTS=3`
   - `GOOGLE_DRIVE_RETRY_BASE_SLEEP_S=0.6`
@@ -81,6 +84,8 @@ Note operative:
   - `CLAUDE_RETRY_BASE_SLEEP_S=0.8`
 - In mancanza di env validi, il sistema usa fallback stub senza interrompere il flusso operativo
 - Drive upload e OCR devono restare automatici nel flusso di capture
+- Se sono presenti variabili service account (`GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` o `..._FILE`), il backend puo usarle come fallback.
+- Per account Google personali, preferire OAuth utente (service account puo fallire con `storageQuotaExceeded`).
 - OCR normalizza automaticamente:
   - date francesi (`DD/MM/YYYY`, `DD-MM-YYYY`, `DD mois YYYY`) -> `YYYY-MM-DD`
   - peso (`2,5 kg`, `500gr`) -> formato coerente
@@ -111,6 +116,9 @@ Nota sicurezza: chiavi API sensibili vanno solo in `backend/.env`, non in `mobil
 ### Flusso UI implementato
 
 - Login token
+- Schermata capture con due modalita:
+  - `Modalita camera` (default): priorita velocita operativa, validazione differita
+  - `Modalita flusso completo`: visualizzazione immediata del draft con OCR/warning
 - Scatto foto etichetta e invio a backend
 - Visualizzazione risultato OCR + suggerimenti prodotto top-3
 - Lista draft da convalidare

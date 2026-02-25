@@ -20,7 +20,7 @@ Build a mobile-first application for HACCP traceability operations in profession
 
 3. Operational modes
 
-Mode A - Immediate (Photo/Analysis)
+Mode A - Flusso completo (Photo + Analysis + Validation)
 
 - Take photo
 - Automatic upload to Google Drive (mandatory)
@@ -30,18 +30,19 @@ Mode A - Immediate (Photo/Analysis)
 - Optional lifecycle transformation
 - Optional label generation/printing
 
-Mode B - Batch Capture
+Mode B - Modalita camera (rapid capture)
 
-- Take multiple photos quickly
+- Take photos quickly with minimum friction
 - Automatic upload to Google Drive (mandatory)
 - Automatic OCR extraction in backend
 - Deferred draft validation from draft queue
 
-Note: There is no "photo-only without analysis" mode. Analysis always runs.
+Note: Default UX is Mode B (`Modalita camera`) to maximize speed on phone.
+Analysis still runs in backend; immediate validation is optional via Mode A.
 
 4. Functional requirements (current scope)
 
-- Mobile capture with camera or gallery
+- Mobile capture with camera-first UX and gallery fallback
 - OCR extraction payload fields:
   - supplier_lot_code
   - dlc_date

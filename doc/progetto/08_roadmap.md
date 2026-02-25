@@ -20,10 +20,10 @@ Phase 1 - Operational MVP (current)
 
 Phase 2 - Operational speed modes
 
-- Mode A Immediate:
+- Mode A Flusso completo:
   - capture -> drive -> OCR -> immediate validation flow
-- Mode B Batch:
-  - rapid multi-capture, deferred validation queue
+- Mode B Modalita camera (default):
+  - rapid capture, deferred validation queue
 - Keep Drive upload mandatory in both modes
 
 Phase 3 - Lifecycle and labels

@@ -21,7 +21,11 @@ type Props = {
   refreshDrafts: () => Promise<void>;
 };
 
+type CaptureMode = "camera_only" | "full_flow";
+
 export function CaptureScreen(props: Props) {
+  const [mode, setMode] = React.useState<CaptureMode>("camera_only");
+
   async function submitPickedAsset(asset: ImagePicker.ImagePickerAsset) {
     const fileBase64 = asset.base64;
     if (!fileBase64) {
@@ -46,7 +50,7 @@ export function CaptureScreen(props: Props) {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        props.setError("Camera non disponibile su emulatore. Usa 'Scegli dalla galleria'.");
+        props.setError("Camera non disponibile su emulatore. Usa il fallback galleria.");
         return;
       }
       const shot = await ImagePicker.launchCameraAsync({
@@ -59,6 +63,9 @@ export function CaptureScreen(props: Props) {
       }
       const asset = shot.assets[0];
       await submitPickedAsset(asset);
+      if (mode === "camera_only") {
+        props.setCaptureResult(null);
+      }
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore sconosciuto.");
     } finally {
@@ -84,6 +91,9 @@ export function CaptureScreen(props: Props) {
         return;
       }
       await submitPickedAsset(picked.assets[0]);
+      if (mode === "camera_only") {
+        props.setCaptureResult(null);
+      }
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore sconosciuto.");
     } finally {
@@ -104,15 +114,49 @@ export function CaptureScreen(props: Props) {
         />
         <Text style={appStyles.label}>Fornitore (opzionale)</Text>
         <TextInput style={appStyles.input} value={props.supplierName} onChangeText={props.setSupplierName} />
+        <Text style={appStyles.label}>Modalità operativa</Text>
+        <View style={appStyles.tabsRow}>
+          <Pressable
+            style={[appStyles.tabButton, mode === "camera_only" ? appStyles.tabButtonActive : undefined]}
+            onPress={() => setMode("camera_only")}
+            disabled={props.loading}
+          >
+            <Text style={[appStyles.tabText, mode === "camera_only" ? appStyles.tabTextActive : undefined]}>
+              Modalità camera
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[appStyles.tabButton, mode === "full_flow" ? appStyles.tabButtonActive : undefined]}
+            onPress={() => setMode("full_flow")}
+            disabled={props.loading}
+          >
+            <Text style={[appStyles.tabText, mode === "full_flow" ? appStyles.tabTextActive : undefined]}>
+              Modalità flusso completo
+            </Text>
+          </Pressable>
+        </View>
+        <Text style={appStyles.tokenPreview}>
+          {mode === "camera_only"
+            ? "Default consigliato: scatti rapidi, elaborazione in backend, validazione dopo."
+            : "Flusso completo: scatto + estrazione + validazione immediata del draft."}
+        </Text>
         <Pressable style={appStyles.button} onPress={captureLabel} disabled={props.loading || !props.token}>
-          <Text style={appStyles.buttonText}>{props.loading ? "Elaborazione..." : "Scatta foto etichetta"}</Text>
+          <Text style={appStyles.buttonText}>
+            {props.loading
+              ? "Elaborazione..."
+              : mode === "camera_only"
+                ? "Apri camera (scatto rapido)"
+                : "Apri camera (estrazione immediata)"}
+          </Text>
         </Pressable>
         <Pressable style={appStyles.buttonSecondary} onPress={pickFromGallery} disabled={props.loading || !props.token}>
-          <Text style={appStyles.buttonSecondaryText}>{props.loading ? "Elaborazione..." : "Scegli dalla galleria"}</Text>
+          <Text style={appStyles.buttonSecondaryText}>
+            {props.loading ? "Elaborazione..." : "Fallback: scegli dalla galleria"}
+          </Text>
         </Pressable>
       </View>
 
-      {props.captureResult ? (
+      {props.captureResult && mode === "full_flow" ? (
         <View style={appStyles.card}>
           <Text style={appStyles.sectionTitle}>Ultimo draft creato</Text>
           <Text>Codice: {props.captureResult.internal_lot_code}</Text>
