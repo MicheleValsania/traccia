@@ -58,6 +58,9 @@ def debug_env(request):
         "CLAUDE_ENABLED": os.getenv("CLAUDE_ENABLED", "NOT SET"),
         "ANTHROPIC_API_KEY": "SET" if os.getenv("ANTHROPIC_API_KEY") else "NOT SET",
         "ANTHROPIC_MODEL": os.getenv("ANTHROPIC_MODEL", "NOT SET"),
+        "GOOGLE_DRIVE_ENABLED": os.getenv("GOOGLE_DRIVE_ENABLED", "NOT SET"),
+        "GOOGLE_DRIVE_FOLDER_ID": os.getenv("GOOGLE_DRIVE_FOLDER_ID", "NOT SET"),
+        "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON": "SET" if os.getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON") else "NOT SET",
     })
     
 class SiteListCreateView(generics.ListCreateAPIView):
@@ -197,7 +200,12 @@ class CaptureLabelView(APIView):
                 "ocr_provider": ocr.validated_data.get("provider", "unknown"),
                 "ocr_warnings": warnings,
                 "product_suggestions": suggestions,
-                "asset": {"drive_file_id": asset.drive_file_id, "drive_link": asset.drive_link},
+                "asset": {
+                    "drive_file_id": asset.drive_file_id,
+                    "drive_link": asset.drive_link,
+                    "drive_provider": drive.get("provider", "unknown"),
+                    "drive_fallback_reason": drive.get("fallback_reason", ""),
+                },
             },
             status=status.HTTP_201_CREATED,
         )

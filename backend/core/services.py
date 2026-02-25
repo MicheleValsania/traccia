@@ -200,22 +200,29 @@ def build_ocr_warnings(ocr_result: dict[str, Any]) -> list[dict[str, str]]:
     return warnings
 
 
-def upload_to_drive_stub(file_name: str, binary: bytes) -> dict[str, str]:
+def upload_to_drive_stub(file_name: str, binary: bytes, fallback_reason: str = "stub") -> dict[str, str]:
     digest = hashlib.sha256(binary).hexdigest()
     drive_file_id = f"drv_{digest[:16]}"
     link = f"https://drive.google.com/file/d/{drive_file_id}/view"
-    return {"drive_file_id": drive_file_id, "drive_link": link, "sha256": digest, "file_name": file_name}
+    return {
+        "drive_file_id": drive_file_id,
+        "drive_link": link,
+        "sha256": digest,
+        "file_name": file_name,
+        "provider": "stub",
+        "fallback_reason": fallback_reason,
+    }
 
 
 def upload_to_drive(file_name: str, binary: bytes, mime_type: str = "image/jpeg") -> dict[str, str]:
     if os.getenv("GOOGLE_DRIVE_ENABLED", "0") != "1":
-        return upload_to_drive_stub(file_name=file_name, binary=binary)
+        return upload_to_drive_stub(file_name=file_name, binary=binary, fallback_reason="drive_disabled")
 
     service_account_path = os.getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE", "")
     service_account_json = os.getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON", "")
     folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
     if (not service_account_path and not service_account_json) or not folder_id:
-        return upload_to_drive_stub(file_name=file_name, binary=binary)
+        return upload_to_drive_stub(file_name=file_name, binary=binary, fallback_reason="missing_drive_config")
 
     attempts = int(os.getenv("GOOGLE_DRIVE_RETRY_ATTEMPTS", "3"))
     backoff = float(os.getenv("GOOGLE_DRIVE_RETRY_BASE_SLEEP_S", "0.6"))
@@ -241,8 +248,9 @@ def upload_to_drive(file_name: str, binary: bytes, mime_type: str = "image/jpeg"
 
     try:
         created = _retry(_op, attempts=attempts, base_sleep_s=backoff)
-    except Exception:
-        return upload_to_drive_stub(file_name=file_name, binary=binary)
+    except Exception as exc:
+        logger.exception("Drive upload fallback to stub. file_name=%s error=%s", file_name, exc)
+        return upload_to_drive_stub(file_name=file_name, binary=binary, fallback_reason=str(exc)[:400])
 
     digest = hashlib.sha256(binary).hexdigest()
     return {
@@ -250,6 +258,8 @@ def upload_to_drive(file_name: str, binary: bytes, mime_type: str = "image/jpeg"
         "drive_link": created.get("webViewLink", f"https://drive.google.com/file/d/{created['id']}/view"),
         "sha256": digest,
         "file_name": file_name,
+        "provider": "drive",
+        "fallback_reason": "",
     }
 
 
