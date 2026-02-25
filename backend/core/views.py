@@ -61,6 +61,9 @@ def debug_env(request):
         "GOOGLE_DRIVE_ENABLED": os.getenv("GOOGLE_DRIVE_ENABLED", "NOT SET"),
         "GOOGLE_DRIVE_FOLDER_ID": os.getenv("GOOGLE_DRIVE_FOLDER_ID", "NOT SET"),
         "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON": "SET" if os.getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON") else "NOT SET",
+        "GOOGLE_DRIVE_OAUTH_CLIENT_ID": "SET" if os.getenv("GOOGLE_DRIVE_OAUTH_CLIENT_ID") else "NOT SET",
+        "GOOGLE_DRIVE_OAUTH_CLIENT_SECRET": "SET" if os.getenv("GOOGLE_DRIVE_OAUTH_CLIENT_SECRET") else "NOT SET",
+        "GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN": "SET" if os.getenv("GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN") else "NOT SET",
     })
     
 class SiteListCreateView(generics.ListCreateAPIView):

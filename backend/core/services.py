@@ -10,6 +10,8 @@ from io import BytesIO, StringIO
 from typing import Any
 
 from django.db.models import Max, QuerySet
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from google.oauth2.credentials import Credentials as UserCredentials
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
@@ -218,36 +220,62 @@ def upload_to_drive(file_name: str, binary: bytes, mime_type: str = "image/jpeg"
     if os.getenv("GOOGLE_DRIVE_ENABLED", "0") != "1":
         return upload_to_drive_stub(file_name=file_name, binary=binary, fallback_reason="drive_disabled")
 
+    oauth_client_id = os.getenv("GOOGLE_DRIVE_OAUTH_CLIENT_ID", "")
+    oauth_client_secret = os.getenv("GOOGLE_DRIVE_OAUTH_CLIENT_SECRET", "")
+    oauth_refresh_token = os.getenv("GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN", "")
+    oauth_token_uri = os.getenv("GOOGLE_DRIVE_OAUTH_TOKEN_URI", "https://oauth2.googleapis.com/token")
+
     service_account_path = os.getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE", "")
     service_account_json = os.getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON", "")
     folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
-    if (not service_account_path and not service_account_json) or not folder_id:
+    has_oauth = bool(oauth_client_id and oauth_client_secret and oauth_refresh_token)
+    has_service_account = bool(service_account_path or service_account_json)
+    if (not has_oauth and not has_service_account) or not folder_id:
         return upload_to_drive_stub(file_name=file_name, binary=binary, fallback_reason="missing_drive_config")
 
     attempts = int(os.getenv("GOOGLE_DRIVE_RETRY_ATTEMPTS", "3"))
     backoff = float(os.getenv("GOOGLE_DRIVE_RETRY_BASE_SLEEP_S", "0.6"))
 
     def _op():
-        if service_account_json:
+        if has_oauth:
+            creds = UserCredentials(
+                token=None,
+                refresh_token=oauth_refresh_token,
+                token_uri=oauth_token_uri,
+                client_id=oauth_client_id,
+                client_secret=oauth_client_secret,
+                scopes=["https://www.googleapis.com/auth/drive.file"],
+            )
+            creds.refresh(GoogleAuthRequest())
+            provider = "oauth_user"
+        elif service_account_json:
             creds_info = json.loads(service_account_json)
             creds = service_account.Credentials.from_service_account_info(
                 creds_info, scopes=["https://www.googleapis.com/auth/drive.file"]
             )
+            provider = "service_account"
         else:
             creds = service_account.Credentials.from_service_account_file(
                 service_account_path, scopes=["https://www.googleapis.com/auth/drive.file"]
             )
+            provider = "service_account"
         drive = build("drive", "v3", credentials=creds)
         media = MediaIoBaseUpload(BytesIO(binary), mimetype=mime_type, resumable=False)
         metadata = {"name": file_name, "parents": [folder_id]}
-        return (
+        created = (
             drive.files()
-            .create(body=metadata, media_body=media, fields="id,webViewLink")
+            .create(
+                body=metadata,
+                media_body=media,
+                fields="id,webViewLink",
+                supportsAllDrives=True,
+            )
             .execute()
         )
+        return created, provider
 
     try:
-        created = _retry(_op, attempts=attempts, base_sleep_s=backoff)
+        created, provider = _retry(_op, attempts=attempts, base_sleep_s=backoff)
     except Exception as exc:
         logger.exception("Drive upload fallback to stub. file_name=%s error=%s", file_name, exc)
         return upload_to_drive_stub(file_name=file_name, binary=binary, fallback_reason=str(exc)[:400])
@@ -258,7 +286,7 @@ def upload_to_drive(file_name: str, binary: bytes, mime_type: str = "image/jpeg"
         "drive_link": created.get("webViewLink", f"https://drive.google.com/file/d/{created['id']}/view"),
         "sha256": digest,
         "file_name": file_name,
-        "provider": "drive",
+        "provider": provider,
         "fallback_reason": "",
     }
 
