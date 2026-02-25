@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     AlertListView,
+    AlertStatusUpdateView,
     CaptureLabelView,
     DraftLotListView,
     FicheImportView,
@@ -26,6 +27,7 @@ urlpatterns = [
     path("lots/<uuid:lot_id>/validate", LotValidateView.as_view(), name="lot-validate"),
     path("lots/<uuid:lot_id>/transform", LotTransformView.as_view(), name="lot-transform"),
     path("alerts", AlertListView.as_view(), name="alerts-list"),
+    path("alerts/<uuid:alert_id>/status", AlertStatusUpdateView.as_view(), name="alerts-status-update"),
     path("reports/lots.csv", LotReportCsvView.as_view(), name="report-lots-csv"),
     path("reports/lots.pdf", LotReportPdfView.as_view(), name="report-lots-pdf"),
 ]

@@ -28,6 +28,7 @@ from .models import (
 )
 from .serializers import (
     AlertSerializer,
+    AlertStatusUpdateSerializer,
     DraftFromPhotoSerializer,
     DraftReviewSerializer,
     DraftValidationSerializer,
@@ -365,6 +366,8 @@ class AlertListView(generics.ListAPIView):
     def get_queryset(self):
         qs = Alert.objects.select_related("lot").order_by("trigger_at")
         site_code = self.request.query_params.get("site_code")
+        due_only = self.request.query_params.get("due_only", "1") == "1"
+        include_resolved = self.request.query_params.get("include_resolved", "0") == "1"
         if site_code:
             site = Site.objects.filter(code=site_code).first()
             if not site:
@@ -373,7 +376,48 @@ class AlertListView(generics.ListAPIView):
             if role not in {MembershipRole.ADMIN, MembershipRole.MANAGER, MembershipRole.CHEF, MembershipRole.OPERATOR}:
                 return Alert.objects.none()
             qs = qs.filter(lot__site=site)
+        if due_only:
+            qs = qs.filter(trigger_at__lte=timezone.now())
+        if not include_resolved:
+            qs = qs.exclude(status="RESOLVED")
         return qs
+
+
+class AlertStatusUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, alert_id):
+        serializer = AlertStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        next_status = serializer.validated_data["status"]
+        try:
+            alert = Alert.objects.select_for_update().select_related("lot__site").get(id=alert_id)
+        except Alert.DoesNotExist:
+            return Response({"detail": "Alert not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        auth_error = _ensure_site_role(
+            request,
+            alert.lot.site,
+            {MembershipRole.ADMIN, MembershipRole.MANAGER, MembershipRole.CHEF, MembershipRole.OPERATOR},
+        )
+        if auth_error:
+            return auth_error
+
+        alert.status = next_status
+        if next_status == "ACKED":
+            alert.acked_at = timezone.now()
+        alert.save(update_fields=["status", "acked_at"])
+
+        log_audit_event(
+            action="ALERT_STATUS_UPDATED",
+            request=request,
+            site=alert.lot.site,
+            object_type="Alert",
+            object_id=str(alert.id),
+            payload={"status": next_status, "lot_code": alert.lot.internal_lot_code},
+        )
+        return Response({"alert_id": str(alert.id), "status": alert.status}, status=status.HTTP_200_OK)
 
 
 class LotReportCsvView(APIView):

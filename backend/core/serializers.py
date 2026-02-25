@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Alert, Asset, FicheProduct, Lot, Site
+from .models import Alert, AlertStatus, Asset, FicheProduct, Lot, Site
 from .services import parse_date_or_none, suggest_products
 
 
@@ -74,10 +74,27 @@ class LotTransformSerializer(serializers.Serializer):
 
 class AlertSerializer(serializers.ModelSerializer):
     lot_code = serializers.CharField(source="lot.internal_lot_code", read_only=True)
+    supplier_name = serializers.CharField(source="lot.supplier_name", read_only=True)
+    supplier_lot_code = serializers.CharField(source="lot.supplier_lot_code", read_only=True)
+    dlc_date = serializers.DateField(source="lot.dlc_date", read_only=True)
 
     class Meta:
         model = Alert
-        fields = ["id", "lot", "lot_code", "alert_type", "trigger_at", "status"]
+        fields = [
+            "id",
+            "lot",
+            "lot_code",
+            "supplier_name",
+            "supplier_lot_code",
+            "dlc_date",
+            "alert_type",
+            "trigger_at",
+            "status",
+        ]
+
+
+class AlertStatusUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=[AlertStatus.ACKED, AlertStatus.RESOLVED])
 
 
 class DraftReviewSerializer(serializers.ModelSerializer):

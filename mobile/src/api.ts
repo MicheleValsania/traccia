@@ -1,4 +1,4 @@
-import { CaptureResponse, DraftLot, TransformResponse } from "./types";
+import { AlertItem, CaptureResponse, DraftLot, TransformResponse } from "./types";
 
 function buildApiBase(): string {
   const raw = (process.env.EXPO_PUBLIC_API_BASE || "").trim();
@@ -122,4 +122,30 @@ export function reportCsvUrl(siteCode: string, token: string): string {
 
 export function reportPdfUrl(siteCode: string, token: string): string {
   return `${API_BASE}/reports/lots.pdf?site_code=${siteCode}&token=${token}`;
+}
+
+export async function fetchAlerts(token: string, siteCode: string): Promise<AlertItem[]> {
+  const response = await fetch(
+    `${API_BASE}/alerts?site_code=${siteCode}&due_only=1&include_resolved=0`,
+    withAuth(token, { method: "GET" }),
+  );
+  if (!response.ok) {
+    throw new Error("Caricamento alert fallito.");
+  }
+  return (await response.json()) as AlertItem[];
+}
+
+export async function updateAlertStatus(
+  token: string,
+  alertId: string,
+  status: "ACKED" | "RESOLVED",
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/alerts/${alertId}/status`,
+    withAuth(token, { method: "POST", body: JSON.stringify({ status }) }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Aggiornamento alert fallito.");
+  }
 }

@@ -62,6 +62,7 @@ Note operative:
 - `POST /api/lots/{lot_id}/validate`
 - `POST /api/lots/{lot_id}/transform`
 - `GET /api/alerts?site_code=PARIS01`
+- `POST /api/alerts/{alert_id}/status`
 - `GET /api/reports/lots.csv?site_code=PARIS01&from_date=2026-02-01&to_date=2026-02-21`
 - `GET /api/reports/lots.pdf?site_code=PARIS01&from_date=2026-02-01&to_date=2026-02-21`
 
@@ -95,6 +96,20 @@ Note operative:
   - DLC mancante/non valida/nel passato/troppo lontana
   - peso mancante o implausibile
   - prodotto suggerito assente
+
+### Alert processing operativo
+
+- Gli alert di scadenza (`D-3`, `D-2`, `D-1`, `EXPIRED`) vengono pianificati alla convalida del lotto.
+- Per marcare gli alert "dovuti" come inviati, eseguire periodicamente:
+
+```powershell
+python manage.py process_alerts
+```
+
+- Mobile supporta ora:
+  - lista alert attivi (`due_only=1`)
+  - azione `ACKED`
+  - azione `RESOLVED`
 
 ## Mobile - avvio locale
 

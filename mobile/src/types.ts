@@ -36,4 +36,16 @@ export type TransformResponse = {
   action: string;
 };
 
+export type AlertItem = {
+  id: string;
+  lot: string;
+  lot_code: string;
+  supplier_name: string;
+  supplier_lot_code: string;
+  dlc_date: string | null;
+  alert_type: "EXPIRY_D3" | "EXPIRY_D2" | "EXPIRY_D1" | "EXPIRED";
+  trigger_at: string;
+  status: "PENDING" | "SENT" | "ACKED" | "RESOLVED";
+};
+
 export type TabKey = "capture" | "drafts" | "lifecycle" | "reports";
