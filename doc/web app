@@ -1,0 +1,71 @@
+Ho tutto il contesto necessario. Ecco la proposta di struttura per l'interfaccia web.
+
+---
+
+## Struttura generale
+
+Una singola app React (stesso stack di fiches-recettes), accessibile su browser PC e tablet. Navbar laterale su PC, bottom bar su tablet. 5 sezioni principali.
+
+---
+
+## Navigazione — 5 sezioni
+
+**1. Lotti** · **2. Lifecycle** · **3. Alert / Report** · **4. Parametri** · **5. Etichette**
+
+---
+
+## 1 — Lotti (Verifica & Convalida)
+
+Vista principale: tabella con filtri rapidi per stato (DRAFT / VALIDATED / TRANSFORMED / EXPIRED) e per data.
+
+Ogni riga mostra: prodotto suggerito OCR · lotto fornitore · DLC · peso · stato · warnings OCR se presenti.
+
+**Convalida singola:** click sulla riga → pannello laterale (drawer) con tutti i campi editabili. I dati OCR sono pre-compilati, si corregge solo ciò che serve. Collegamento diretto alla fiche associata (allergeni, storage profile) se il prodotto è stato riconosciuto.
+
+**Convalida di massa:** checkbox su più righe → "Valida selezionati" — solo per lotti senza warnings OCR bloccanti. Lotti con warnings rimangono evidenziati e richiedono revisione manuale.
+
+**Su tablet:** stessa vista, con aggiunta pulsante camera in alto a destra per cattura diretta (stesso flusso del mobile).
+
+---
+
+## 2 — Lifecycle (Ciclo di vita)
+
+Lista lotti VALIDATED filtrabili per categoria/prodotto. Ogni lotto mostra la DLC attuale e le trasformazioni consentite (da `allowed_transformations` dello storage_profile della fiche associata).
+
+Azione: seleziono un lotto → scelgo la trasformazione da menu a scorrimento (FREEZING, SOUS_VIDE_COOK, VACUUM_PACKING, THAWING…) → la nuova DLC viene calcolata automaticamente e mostrata prima di confermare → un tap conferma e crea il nuovo stato.
+
+Le soluzioni predefinite (punto 4) alimentano questo menu direttamente.
+
+---
+
+## 3 — Alert / Report
+
+**Alert:** vista a tre fasce colorate — scaduto (rosso) / D-1 (arancio) / D-3 (giallo). Ordinati per urgenza. Tap su un lotto per dettaglio e azione rapida (smaltire / trasformare).
+
+**Report:** filtri per periodo, fornitore, categoria → export CSV o PDF. Nessun grafico per ora, solo tabelle pulite.
+
+---
+
+## 4 — Parametri
+
+Questa è la sezione chiave per il tuo punto 4 e 5.
+
+**Storage profiles predefiniti:** lista editabile di profili (nome, modalità conservazione, DLC shelf_life, temp range, trasformazioni consentite). Ogni profilo ha un nome breve leggibile (es. "Poisson frais 0-3°C · 3j") che appare nei menu a scorrimento ovunque nell'app — sia web che mobile.
+
+**Import fiches:** pulsante per importare/aggiornare il JSON export v1.1 da fiches-recettes. Mostra stato ultimo import (data, numero fiches importate, warnings). Qui vengono popolati automaticamente allergeni, haccp_profiles, storage_profiles per ogni prodotto riconosciuto.
+
+**Prodotti non riconosciuti:** lista dei `product_guess` OCR che non hanno trovato match in fiches — possibilità di associarli manualmente a una fiche o creare un prodotto standalone.
+
+---
+
+## 5 — Etichette
+
+Selezione lotto validato → scelta template (RAW_MATERIAL / PREPARATION / TRANSFORMATION) pre-compilata da `label_hints` della fiche. Campi editabili se necessario. Preview → stampa diretta o PDF.
+
+---
+
+## Punti chiave di design
+
+Stile fiches-recettes: font system, palette neutra, zero decorazioni. Nessun grafico, nessuna dashboard numerica complessa. Tutto in tabelle e form lineari.
+
+I menu a scorrimento con soluzioni predefinite (storage profiles, trasformazioni) sono il filo conduttore che collega web, tablet e mobile — definiti una volta in Parametri, usati ovunque.
