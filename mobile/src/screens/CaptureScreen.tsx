@@ -25,8 +25,12 @@ type CaptureMode = "camera_only" | "full_flow";
 
 export function CaptureScreen(props: Props) {
   const [mode, setMode] = React.useState<CaptureMode>("camera_only");
+  const [sessionShots, setSessionShots] = React.useState(0);
 
-  async function submitPickedAsset(asset: ImagePicker.ImagePickerAsset) {
+  async function submitPickedAsset(
+    asset: ImagePicker.ImagePickerAsset,
+    options?: { showResult?: boolean; refreshDrafts?: boolean },
+  ) {
     const fileBase64 = asset.base64;
     if (!fileBase64) {
       props.setError("Immagine non valida: base64 assente.");
@@ -40,8 +44,12 @@ export function CaptureScreen(props: Props) {
       fileMimeType: asset.mimeType || "image/jpeg",
       fileBase64,
     });
-    props.setCaptureResult(body);
-    await props.refreshDrafts();
+    if (options?.showResult ?? true) {
+      props.setCaptureResult(body);
+    }
+    if (options?.refreshDrafts ?? true) {
+      await props.refreshDrafts();
+    }
   }
 
   async function captureLabel() {
@@ -53,6 +61,28 @@ export function CaptureScreen(props: Props) {
         props.setError("Camera non disponibile su emulatore. Usa il fallback galleria.");
         return;
       }
+      if (mode === "camera_only") {
+        let localCount = 0;
+        while (true) {
+          const shot = await ImagePicker.launchCameraAsync({
+            quality: 0.6,
+            base64: true,
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          });
+          if (shot.canceled || !shot.assets[0]?.base64) {
+            break;
+          }
+          await submitPickedAsset(shot.assets[0], { showResult: false, refreshDrafts: false });
+          localCount += 1;
+          setSessionShots((prev) => prev + 1);
+        }
+        if (localCount > 0) {
+          await props.refreshDrafts();
+          props.setError("");
+        }
+        props.setCaptureResult(null);
+        return;
+      }
       const shot = await ImagePicker.launchCameraAsync({
         quality: 0.6,
         base64: true,
@@ -61,11 +91,7 @@ export function CaptureScreen(props: Props) {
       if (shot.canceled || !shot.assets[0]?.base64) {
         return;
       }
-      const asset = shot.assets[0];
-      await submitPickedAsset(asset);
-      if (mode === "camera_only") {
-        props.setCaptureResult(null);
-      }
+      await submitPickedAsset(shot.assets[0], { showResult: true, refreshDrafts: true });
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore sconosciuto.");
     } finally {
@@ -140,12 +166,15 @@ export function CaptureScreen(props: Props) {
             ? "Default consigliato: scatti rapidi, elaborazione in backend, validazione dopo."
             : "Flusso completo: scatto + estrazione + validazione immediata del draft."}
         </Text>
+        {mode === "camera_only" ? (
+          <Text style={appStyles.success}>Scatti inviati in sessione: {sessionShots}</Text>
+        ) : null}
         <Pressable style={appStyles.button} onPress={captureLabel} disabled={props.loading || !props.token}>
           <Text style={appStyles.buttonText}>
             {props.loading
               ? "Elaborazione..."
               : mode === "camera_only"
-                ? "Apri camera (scatto rapido)"
+                ? "Avvia sessione camera continua"
                 : "Apri camera (estrazione immediata)"}
           </Text>
         </Pressable>

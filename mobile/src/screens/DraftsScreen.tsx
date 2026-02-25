@@ -14,6 +14,11 @@ type Props = {
 };
 
 export function DraftsScreen(props: Props) {
+  function readAiField(lot: DraftLot, key: string): string {
+    const value = lot.ai_payload?.[key];
+    return typeof value === "string" ? value : "";
+  }
+
   async function validateDraft(lot: DraftLot) {
     try {
       await validateDraftLot(props.token, lot);
@@ -32,8 +37,11 @@ export function DraftsScreen(props: Props) {
       {props.drafts.map((lot) => (
         <View key={lot.id} style={appStyles.draftRow}>
           <Text>{lot.internal_lot_code}</Text>
-          <Text>{lot.supplier_name}</Text>
-          <Text>DLC: {lot.dlc_date || "-"}</Text>
+          <Text>Fornitore: {lot.supplier_name || "-"}</Text>
+          <Text>Lotto fornitore: {lot.supplier_lot_code || readAiField(lot, "supplier_lot_code") || "-"}</Text>
+          <Text>DLC: {lot.dlc_date || readAiField(lot, "dlc_date") || "-"}</Text>
+          <Text>Peso: {readAiField(lot, "weight") || "-"}</Text>
+          <Text>Prodotto OCR: {readAiField(lot, "product_guess") || "-"}</Text>
           <WarningList warnings={lot.ocr_warnings || []} maxItems={2} />
           <Pressable style={appStyles.smallButton} onPress={() => validateDraft(lot)} disabled={!props.token}>
             <Text style={appStyles.smallButtonText}>Convalida</Text>

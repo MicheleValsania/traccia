@@ -450,11 +450,15 @@ def log_audit_event(
 def lots_to_csv(queryset: QuerySet[Lot]) -> str:
     output = StringIO()
     output.write(
-        "internal_lot_code,supplier_name,product,category,status,received_date,dlc_date,quantity_value,quantity_unit\n"
+        "internal_lot_code,supplier_name,supplier_lot_code,product,category,status,received_date,dlc_date,quantity_value,quantity_unit\n"
     )
     for lot in queryset:
+        guessed_product = ""
+        if isinstance(lot.ai_payload, dict):
+            guessed_product = str(lot.ai_payload.get("product_guess", "") or "")
+        product_title = lot.fiche_product.title if lot.fiche_product else guessed_product
         output.write(
-            f"{lot.internal_lot_code},{lot.supplier_name},{lot.fiche_product.title if lot.fiche_product else ''},"
+            f"{lot.internal_lot_code},{lot.supplier_name},{lot.supplier_lot_code},{product_title},"
             f"{lot.category_snapshot},{lot.status},{lot.received_date},{lot.dlc_date or ''},"
             f"{lot.quantity_value or ''},{lot.quantity_unit}\n"
         )
@@ -470,9 +474,14 @@ def lots_to_pdf(queryset: QuerySet[Lot]) -> bytes:
     y -= 30
     pdf.setFont("Helvetica", 9)
     for lot in queryset:
+        guessed_product = ""
+        if isinstance(lot.ai_payload, dict):
+            guessed_product = str(lot.ai_payload.get("product_guess", "") or "")
+        product_title = lot.fiche_product.title if lot.fiche_product else guessed_product or "N/A"
         line = (
             f"{lot.internal_lot_code} | {lot.supplier_name} | "
-            f"{lot.fiche_product.title if lot.fiche_product else 'N/A'} | "
+            f"Lotto: {lot.supplier_lot_code or '-'} | "
+            f"{product_title} | "
             f"{lot.status} | DLC: {lot.dlc_date or '-'}"
         )
         pdf.drawString(40, y, line[:120])

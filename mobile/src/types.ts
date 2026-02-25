@@ -23,6 +23,7 @@ export type DraftLot = {
   quantity_value: string;
   quantity_unit: string;
   status: string;
+  ai_payload?: Record<string, unknown>;
   ocr_warnings: OcrWarning[];
   suggestions: Array<{ id: string; title: string; category: string }>;
 };
