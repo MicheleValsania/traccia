@@ -65,6 +65,38 @@ Drafts and validation
 
 - `GET /api/lots/drafts?site_code=TOURNELS01`
 - `POST /api/lots/{lot_id}/validate`
+- `POST /api/lots/reconcile-identical`
+  - merge ammesso solo per lotti con parametri critici identici
+  - mantiene relazione N:1 tra righe documento e lotto (`LotDocumentMatch`)
+
+Request body (`/api/lots/reconcile-identical`):
+
+```json
+{
+  "site_code": "TOURNELS01",
+  "fiche_product_id": "optional-uuid",
+  "supplier_name": "Miko",
+  "supplier_lot_code": "LOT-ABC-123",
+  "dlc_date": "2026-03-15",
+  "quantity_value": "4.000",
+  "quantity_unit": "kg",
+  "package_count": 20,
+  "critical_attributes": {
+    "supplier_product_id": "561fa673-9b83-4c95-a3ea-fbd55370f8f0",
+    "allergen_signature": "fish"
+  },
+  "document_lines": [
+    {
+      "document_type": "DELIVERY_NOTE",
+      "document_number": "BL-2026-00077",
+      "line_ref": "10",
+      "supplier_product_id": "561fa673-9b83-4c95-a3ea-fbd55370f8f0",
+      "qty_value": "4.000",
+      "qty_unit": "kg"
+    }
+  ]
+}
+```
 
 Lifecycle
 

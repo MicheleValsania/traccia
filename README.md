@@ -60,11 +60,20 @@ Note operative:
 - `POST /api/capture/label-photo`
 - `GET /api/lots/drafts?site_code=PARIS01`
 - `POST /api/lots/{lot_id}/validate`
+- `POST /api/lots/reconcile-identical`
 - `POST /api/lots/{lot_id}/transform`
 - `GET /api/alerts?site_code=PARIS01`
 - `POST /api/alerts/{alert_id}/status`
 - `GET /api/reports/lots.csv?site_code=PARIS01&from_date=2026-02-01&to_date=2026-02-21`
 - `GET /api/reports/lots.pdf?site_code=PARIS01&from_date=2026-02-01&to_date=2026-02-21`
+
+### Deploy Railway
+
+- Deploy automatico su push GitHub supportato.
+- Startup command gestito da `Procfile`:
+  - `python manage.py migrate --noinput`
+  - `gunicorn traceability.wsgi:application --bind 0.0.0.0:$PORT`
+- In questo modo le migration vengono applicate automaticamente a ogni deploy.
 
 ### Note integrazione esterna
 
