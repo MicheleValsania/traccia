@@ -161,3 +161,32 @@ class OcrResultSerializer(serializers.Serializer):
 
     def validated_dlc_date(self):
         return parse_date_or_none(self.validated_data.get("dlc_date", ""))
+
+
+class ReconcileDocumentLineSerializer(serializers.Serializer):
+    document_type = serializers.ChoiceField(choices=["DELIVERY_NOTE", "INVOICE", "GOODS_RECEIPT"])
+    document_number = serializers.CharField()
+    line_ref = serializers.CharField(required=False, allow_blank=True)
+    supplier_product_id = serializers.CharField(required=False, allow_blank=True)
+    qty_value = serializers.DecimalField(max_digits=12, decimal_places=3, required=False)
+    qty_unit = serializers.CharField(required=False, allow_blank=True)
+    rationale = serializers.DictField(required=False)
+
+
+class ReconcileIdenticalLotsSerializer(serializers.Serializer):
+    site_code = serializers.CharField()
+    fiche_product_id = serializers.UUIDField(required=False)
+    supplier_name = serializers.CharField(required=False, allow_blank=True, default="")
+    supplier_lot_code = serializers.CharField()
+    dlc_date = serializers.DateField()
+    quantity_value = serializers.DecimalField(max_digits=12, decimal_places=3)
+    quantity_unit = serializers.CharField()
+    package_count = serializers.IntegerField(min_value=1, required=False, default=1)
+    critical_attributes = serializers.DictField(required=False)
+    document_lines = ReconcileDocumentLineSerializer(many=True, allow_empty=False)
+
+    def validate(self, attrs):
+        fiche_product_id = attrs.get("fiche_product_id")
+        if fiche_product_id and not FicheProduct.objects.filter(id=fiche_product_id).exists():
+            raise serializers.ValidationError("Unknown fiche_product_id.")
+        return attrs

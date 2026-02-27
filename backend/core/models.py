@@ -233,6 +233,36 @@ class LotTransformation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
+class LotDocumentMatchStatus(models.TextChoices):
+    CONFIRMED = "CONFIRMED", "CONFIRMED"
+    REJECTED = "REJECTED", "REJECTED"
+
+
+class LotDocumentMatch(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lot = models.ForeignKey(Lot, on_delete=models.CASCADE, related_name="document_matches")
+    document_type = models.CharField(max_length=24, help_text="DELIVERY_NOTE|INVOICE|GOODS_RECEIPT")
+    document_number = models.CharField(max_length=128)
+    line_ref = models.CharField(max_length=128, blank=True, default="")
+    supplier_product_id = models.CharField(max_length=128, blank=True, default="")
+    qty_value = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    qty_unit = models.CharField(max_length=16, blank=True, default="")
+    status = models.CharField(
+        max_length=16,
+        choices=LotDocumentMatchStatus.choices,
+        default=LotDocumentMatchStatus.CONFIRMED,
+    )
+    rationale = models.JSONField(default=dict, blank=True)
+    confirmed_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="lot_document_matches"
+    )
+    confirmed_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("lot", "document_type", "document_number", "line_ref")
+
+
 class AuditLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     happened_at = models.DateTimeField(default=timezone.now, db_index=True)

@@ -6,6 +6,7 @@ from .models import (
     AuditLog,
     FicheProduct,
     Lot,
+    LotDocumentMatch,
     LotEvent,
     LotTransformation,
     Membership,
@@ -19,6 +20,7 @@ admin.site.register(FicheProduct)
 admin.site.register(ProductAlias)
 admin.site.register(Membership)
 admin.site.register(Lot)
+admin.site.register(LotDocumentMatch)
 admin.site.register(LotEvent)
 admin.site.register(LotTransformation)
 admin.site.register(Asset)

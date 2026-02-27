@@ -1,4 +1,5 @@
 import base64
+from decimal import Decimal
 
 from django.db import transaction
 from django.http import HttpResponse
@@ -25,6 +26,7 @@ from .models import (
     LotEvent,
     LotEventType,
     LotTransformation,
+    LotDocumentMatch,
 )
 from .serializers import (
     AlertSerializer,
@@ -36,6 +38,7 @@ from .serializers import (
     LotReportFilterSerializer,
     LotTransformSerializer,
     OcrResultSerializer,
+    ReconcileIdenticalLotsSerializer,
     SiteSerializer,
 )
 from .services import (
@@ -281,6 +284,133 @@ class LotValidateView(APIView):
         return Response(
             {"lot_id": str(lot.id), "status": lot.status, "alerts_created": lot.alerts.count()},
             status=status.HTTP_200_OK,
+        )
+
+
+class ReconcileIdenticalLotsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        serializer = ReconcileIdenticalLotsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            site = Site.objects.get(code=data["site_code"])
+        except Site.DoesNotExist:
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
+
+        auth_error = _ensure_site_role(
+            request, site, {MembershipRole.ADMIN, MembershipRole.MANAGER, MembershipRole.CHEF, MembershipRole.OPERATOR}
+        )
+        if auth_error:
+            return auth_error
+
+        normalized_lot = str(data["supplier_lot_code"]).strip().upper()
+        normalized_supplier = str(data.get("supplier_name", "")).strip()
+        qty_value = Decimal(data["quantity_value"])
+        qty_unit = str(data["quantity_unit"]).strip().lower()
+        critical_attrs = data.get("critical_attributes") or {}
+        supplier_product_id = str(critical_attrs.get("supplier_product_id", "")).strip()
+        allergen_signature = str(critical_attrs.get("allergen_signature", "")).strip()
+
+        candidate = (
+            Lot.objects.select_for_update()
+            .filter(
+                site=site,
+                status=LotStatus.ACTIVE,
+                supplier_name=normalized_supplier,
+                supplier_lot_code=normalized_lot,
+                dlc_date=data["dlc_date"],
+                quantity_unit=qty_unit,
+            )
+            .order_by("-updated_at")
+            .first()
+        )
+
+        merged = False
+        lot = None
+        if candidate:
+            payload = candidate.ai_payload if isinstance(candidate.ai_payload, dict) else {}
+            payload_critical = payload.get("critical_attributes", {})
+            same_supplier_product = str(payload_critical.get("supplier_product_id", "")).strip() == supplier_product_id
+            same_allergen_signature = str(payload_critical.get("allergen_signature", "")).strip() == allergen_signature
+            if same_supplier_product and same_allergen_signature:
+                lot = candidate
+                lot.quantity_value = (lot.quantity_value or Decimal("0")) + qty_value
+                payload["critical_attributes"] = {
+                    "supplier_product_id": supplier_product_id,
+                    "allergen_signature": allergen_signature,
+                }
+                payload["package_count"] = int(payload.get("package_count") or 0) + int(data.get("package_count", 1))
+                lot.ai_payload = payload
+                lot.save(update_fields=["quantity_value", "ai_payload", "updated_at"])
+                merged = True
+
+        if not lot:
+            lot = Lot.objects.create(
+                site=site,
+                fiche_product_id=data.get("fiche_product_id"),
+                internal_lot_code=next_internal_code(site.code),
+                supplier_name=normalized_supplier,
+                supplier_lot_code=normalized_lot,
+                quantity_value=qty_value,
+                quantity_unit=qty_unit,
+                dlc_date=data["dlc_date"],
+                status=LotStatus.ACTIVE,
+                ai_suggested=False,
+                ai_payload={
+                    "critical_attributes": {
+                        "supplier_product_id": supplier_product_id,
+                        "allergen_signature": allergen_signature,
+                    },
+                    "package_count": int(data.get("package_count", 1)),
+                },
+                validated_by=str(getattr(request.user, "username", "") or ""),
+                validated_at=timezone.now(),
+            )
+            lot.schedule_expiry_alerts()
+
+        created_matches = []
+        for line in data["document_lines"]:
+            match = LotDocumentMatch.objects.create(
+                lot=lot,
+                document_type=line["document_type"],
+                document_number=line["document_number"],
+                line_ref=line.get("line_ref", ""),
+                supplier_product_id=line.get("supplier_product_id", ""),
+                qty_value=line.get("qty_value"),
+                qty_unit=(line.get("qty_unit") or "").strip().lower(),
+                rationale=line.get("rationale", {}),
+                confirmed_by=request.user if request.user.is_authenticated else None,
+            )
+            created_matches.append(str(match.id))
+
+        log_audit_event(
+            action="LOT_RECONCILED_IDENTICAL",
+            request=request,
+            site=site,
+            object_type="Lot",
+            object_id=str(lot.id),
+            payload={
+                "merged": merged,
+                "supplier_lot_code": normalized_lot,
+                "document_lines_count": len(data["document_lines"]),
+                "created_match_ids": created_matches,
+            },
+        )
+
+        return Response(
+            {
+                "lot_id": str(lot.id),
+                "internal_lot_code": lot.internal_lot_code,
+                "merged": merged,
+                "quantity_value": str(lot.quantity_value),
+                "quantity_unit": lot.quantity_unit,
+                "document_matches_created": len(created_matches),
+            },
+            status=status.HTTP_200_OK if merged else status.HTTP_201_CREATED,
         )
 
 
