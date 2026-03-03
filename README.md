@@ -16,7 +16,7 @@ Implementazione iniziale allineata alle decisioni di progetto:
 
 - `backend/`: Django + DRF (API e regole Fase 1)
 - `mobile/`: Expo React Native (mobile-first capture rapido)
-- upstream handoff reference: `C:\Users\user\fiches-recettes\traceability_handoff.json`
+- upstream handoff reference: `C:\Users\user\chefside\fiches-recettes\traceability_handoff.json`
 
 ## Backend - avvio locale
 
@@ -36,12 +36,12 @@ Il backend ora carica automaticamente variabili da `backend/.env`.
 
 ### Import envelope da fiches-recettes (handoff script)
 
-Script upstream: `C:\Users\user\fiches-recettes\scripts\import-fiches-envelope.ps1`
+Script upstream: `C:\Users\user\chefside\fiches-recettes\scripts\import-fiches-envelope.ps1`
 
 Uso consigliato:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\user\fiches-recettes\scripts\import-fiches-envelope.ps1 -Path "C:\path\file.json" -ApiBase "http://localhost:3001/api"
+powershell -ExecutionPolicy Bypass -File C:\Users\user\chefside\fiches-recettes\scripts\import-fiches-envelope.ps1 -Path "C:\path\file.json" -ApiBase "http://localhost:3001/api"
 ```
 
 Note operative:
@@ -128,7 +128,13 @@ npm install
 npm run start
 ```
 
-Configura endpoint backend per telefono fisico creando `mobile/.env`:
+Configura endpoint backend creando `mobile/.env` (consigliato anche in locale per evitare fallback impliciti):
+
+```dotenv
+EXPO_PUBLIC_API_BASE=https://<your-traccia-backend>.up.railway.app
+```
+
+In alternativa, per backend locale:
 
 ```dotenv
 EXPO_PUBLIC_API_BASE=http://<IP_DEL_TUO_PC>:8000

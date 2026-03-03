@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cookops.local/schemas/cookops-traccia-envelope-1.0.0.json",
+  "title": "CookOps-Traccia Integration Envelope",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "source_app",
+    "exported_at",
+    "site_code",
+    "fiches"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "source_app": { "type": "string", "minLength": 1 },
+    "exported_at": { "type": "string", "format": "date-time" },
+    "site_code": { "type": "string", "minLength": 1 },
+    "fiches": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fiche" }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "qty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "unit"],
+      "properties": {
+        "value": { "type": "number", "exclusiveMinimum": 0 },
+        "unit": { "type": "string", "enum": ["kg", "g", "l", "ml", "cl", "pc"] }
+      }
+    },
+    "supplier": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["supplier_name"],
+      "properties": {
+        "supplier_id": { "$ref": "#/$defs/uuid" },
+        "supplier_name": { "type": "string", "minLength": 1 }
+      }
+    },
+    "supplier_product": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "supplier_product_id": { "type": "string", "minLength": 1 },
+        "supplier_sku": { "type": "string" },
+        "raw_name": { "type": "string" }
+      }
+    },
+    "ingredient": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "qty", "supplier"],
+      "properties": {
+        "line_id": { "$ref": "#/$defs/uuid" },
+        "name": { "type": "string", "minLength": 1 },
+        "display_name": { "type": "string" },
+        "note": { "type": "string" },
+        "qty": { "$ref": "#/$defs/qty" },
+        "supplier": { "$ref": "#/$defs/supplier" },
+        "supplier_product": { "$ref": "#/$defs/supplier_product" }
+      }
+    },
+    "fiche": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["fiche_product_id", "title", "updated_at", "ingredients"],
+      "properties": {
+        "fiche_product_id": { "$ref": "#/$defs/uuid" },
+        "title": { "type": "string", "minLength": 1 },
+        "category": { "type": "string" },
+        "portions": { "type": "number", "exclusiveMinimum": 0 },
+        "allergens": { "type": "array" },
+        "storage_profiles": { "type": "array" },
+        "label_hints": { "type": ["object", "null"] },
+        "ingredients": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ingredient" }
+        },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "notes": { "type": "string" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

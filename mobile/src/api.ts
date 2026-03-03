@@ -3,6 +3,9 @@ import { AlertItem, CaptureResponse, DraftLot, TransformResponse } from "./types
 function buildApiBase(): string {
   const raw = (process.env.EXPO_PUBLIC_API_BASE || "").trim();
   if (!raw) {
+    console.warn(
+      "EXPO_PUBLIC_API_BASE non impostato: uso fallback locale http://127.0.0.1:8000/api",
+    );
     return "http://127.0.0.1:8000/api";
   }
   const normalized = raw.replace(/\/+$/, "");
@@ -23,12 +26,24 @@ function withAuth(token: string, init?: RequestInit): RequestInit {
 }
 
 export async function loginToken(username: string, password: string): Promise<string> {
-  const response = await fetch(
-    `${API_BASE}/auth/token`,
-    withAuth("", { method: "POST", body: JSON.stringify({ username, password }) }),
-  );
+  let response: Response;
+  try {
+    response = await fetch(
+      `${API_BASE}/auth/token`,
+      withAuth("", { method: "POST", body: JSON.stringify({ username, password }) }),
+    );
+  } catch (error) {
+    throw new Error(`API non raggiungibile (${API_BASE}/auth/token). Verifica EXPO_PUBLIC_API_BASE e rete.`);
+  }
   if (!response.ok) {
-    throw new Error("Login fallito.");
+    let detail = "";
+    try {
+      const body = (await response.json()) as { detail?: string; non_field_errors?: string[] };
+      detail = body.detail || (body.non_field_errors && body.non_field_errors[0]) || "";
+    } catch {
+      detail = (await response.text()).trim();
+    }
+    throw new Error(`Login fallito [${response.status}]${detail ? `: ${detail}` : ""}`);
   }
   const body = (await response.json()) as { token: string };
   return body.token;

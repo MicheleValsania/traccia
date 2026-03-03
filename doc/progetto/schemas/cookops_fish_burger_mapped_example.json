@@ -1,0 +1,140 @@
+{
+  "schema_version": "1.0.0",
+  "source_app": "cookops",
+  "exported_at": "2026-02-26T10:04:44.541Z",
+  "site_code": "PARIS01",
+  "fiches": [
+    {
+      "fiche_product_id": "55d4ce30-3d97-4752-8b04-9fe4da457a89",
+      "title": "fish burger",
+      "category": "Burger",
+      "portions": 1,
+      "allergens": [],
+      "storage_profiles": [],
+      "label_hints": {
+        "dlcLabel": "",
+        "qrTarget": "",
+        "labelType": "",
+        "legalName": "",
+        "displayName": "",
+        "templateHint": "",
+        "showTempRange": false,
+        "productionLabel": "",
+        "showInternalLot": false,
+        "showSupplierLot": false,
+        "allergenManualText": "",
+        "allergenDisplayMode": "",
+        "defaultStorageProfileId": ""
+      },
+      "ingredients": [
+        {
+          "name": "Bun's nature brioché burger",
+          "display_name": "Bun's nature brioché burger",
+          "note": "",
+          "qty": { "value": 1, "unit": "pc" },
+          "supplier": {
+            "supplier_id": "eea7f19a-4f1b-4e30-a7d0-be086f6ee213",
+            "supplier_name": "compagnie des desserts"
+          },
+          "supplier_product": {
+            "raw_name": "Bun's nature brioché burger"
+          }
+        },
+        {
+          "name": "Cabillaud Panée",
+          "display_name": "Cabillaud Panée",
+          "note": "",
+          "qty": { "value": 130, "unit": "g" },
+          "supplier": {
+            "supplier_id": "561fa673-9b83-4c95-a3ea-fbd55370f8f0",
+            "supplier_name": "Miko"
+          },
+          "supplier_product": {
+            "raw_name": "Cabillaud Panée"
+          }
+        },
+        {
+          "name": "2KG FRITES 15X15 SKIN ON FARM FRITE",
+          "display_name": "2KG FRITES 15X15 SKIN ON FARM FRITE",
+          "note": "",
+          "qty": { "value": 150, "unit": "g" },
+          "supplier": {
+            "supplier_id": "172b32cc-017b-4f0d-87c0-07fcbebb2b24",
+            "supplier_name": "ats"
+          },
+          "supplier_product": {
+            "raw_name": "2KG FRITES 15X15 SKIN ON FARM FRITE"
+          }
+        },
+        {
+          "name": "Mayonnaise 4,7kg",
+          "display_name": "Mayonnaise",
+          "note": "tartare",
+          "qty": { "value": 30, "unit": "g" },
+          "supplier": {
+            "supplier_id": "37ada346-048b-4d18-98ca-98b3892b3861",
+            "supplier_name": "Sysco"
+          },
+          "supplier_product": {
+            "raw_name": "Mayonnaise 4,7kg"
+          }
+        },
+        {
+          "name": "Tomate 67",
+          "display_name": "Tomate",
+          "note": "rondelles",
+          "qty": { "value": 30, "unit": "g" },
+          "supplier": {
+            "supplier_id": "b6624aa8-fe05-4999-aa7b-58b3b34cf13e",
+            "supplier_name": "tropézienne"
+          },
+          "supplier_product": {
+            "raw_name": "Tomate 67"
+          }
+        },
+        {
+          "name": "4/4 CORNICHONS 60+ HUGO REITZEL",
+          "display_name": "4/4 CORNICHONS 60+ HUGO REITZEL",
+          "note": "",
+          "qty": { "value": 30, "unit": "g" },
+          "supplier": {
+            "supplier_id": "172b32cc-017b-4f0d-87c0-07fcbebb2b24",
+            "supplier_name": "ats"
+          },
+          "supplier_product": {
+            "raw_name": "4/4 CORNICHONS 60+ HUGO REITZEL"
+          }
+        },
+        {
+          "name": "Melange italien",
+          "display_name": "Melange italien",
+          "note": "",
+          "qty": { "value": 15, "unit": "g" },
+          "supplier": {
+            "supplier_id": "b6624aa8-fe05-4999-aa7b-58b3b34cf13e",
+            "supplier_name": "tropézienne"
+          },
+          "supplier_product": {
+            "raw_name": "Melange italien"
+          }
+        },
+        {
+          "name": "HUILE GIDCHEF",
+          "display_name": "HUILE GIDCHEF",
+          "note": "friteuse",
+          "qty": { "value": 30, "unit": "ml" },
+          "supplier": {
+            "supplier_id": "172b32cc-017b-4f0d-87c0-07fcbebb2b24",
+            "supplier_name": "ats"
+          },
+          "supplier_product": {
+            "raw_name": "HUILE GIDCHEF"
+          }
+        }
+      ],
+      "steps": [""],
+      "notes": "",
+      "updated_at": "2026-02-26T10:04:44.541Z"
+    }
+  ]
+}

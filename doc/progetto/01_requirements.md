@@ -72,7 +72,7 @@ Analysis still runs in backend; immediate validation is optional via Mode A.
 
 7. Fiches handoff alignment (2026-02-24)
 
-Source: `C:\Users\user\fiches-recettes\traceability_handoff.json`
+Source: `C:\Users\user\chefside\fiches-recettes\traceability_handoff.json`
 
 - Dataset size from source system: about 95 fiches
 - Source status: stable, with quality backlog
