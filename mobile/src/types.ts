@@ -51,6 +51,10 @@ export type AlertItem = {
 export type TemperatureReading = {
   id: string;
   site_code: string;
+  cold_point_id?: string;
+  cold_point_name?: string;
+  sector_id?: string;
+  sector_name?: string;
   device_type: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER";
   device_label: string;
   temperature_celsius: string;
@@ -65,6 +69,57 @@ export type TemperatureReading = {
 export type TemperatureCaptureResponse = {
   reading: TemperatureReading;
   privacy: { photo_persisted: boolean };
+};
+
+export type ColdSector = {
+  id: string;
+  site_code: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ColdPoint = {
+  id: string;
+  site_code: string;
+  sector_id: string;
+  sector_name: string;
+  name: string;
+  device_type: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER";
+  sort_order: number;
+  min_temp_celsius: string | null;
+  max_temp_celsius: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TemperatureRouteStep = {
+  id: string;
+  route: string;
+  cold_point: string;
+  cold_point_name: string;
+  cold_point_device_type: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER";
+  sector_name: string;
+  step_order: number;
+  is_required: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TemperatureRoute = {
+  id: string;
+  site_code: string;
+  sector_id?: string;
+  sector_name?: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  steps: TemperatureRouteStep[];
+  created_at: string;
+  updated_at: string;
 };
 
 export type TabKey = "capture" | "drafts" | "lifecycle" | "temperatures" | "reports";

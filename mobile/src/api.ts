@@ -1,4 +1,14 @@
-import { AlertItem, CaptureResponse, DraftLot, TemperatureCaptureResponse, TemperatureReading, TransformResponse } from "./types";
+import {
+  AlertItem,
+  CaptureResponse,
+  ColdPoint,
+  ColdSector,
+  DraftLot,
+  TemperatureCaptureResponse,
+  TemperatureReading,
+  TemperatureRoute,
+  TransformResponse,
+} from "./types";
 
 function buildApiBase(): string {
   const raw = (process.env.EXPO_PUBLIC_API_BASE || "").trim();
@@ -158,6 +168,7 @@ export async function captureTemperaturePhoto(params: {
   fileBase64: string;
   deviceLabel?: string;
   deviceType?: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER";
+  coldPointId?: string;
 }): Promise<TemperatureCaptureResponse> {
   const payload = {
     site_code: params.siteCode,
@@ -166,6 +177,7 @@ export async function captureTemperaturePhoto(params: {
     file_b64: params.fileBase64,
     device_label: params.deviceLabel || "",
     device_type: params.deviceType || undefined,
+    cold_point_id: params.coldPointId || undefined,
   };
   const response = await fetch(
     `${API_BASE}/temperatures/capture`,
@@ -178,9 +190,20 @@ export async function captureTemperaturePhoto(params: {
   return (await response.json()) as TemperatureCaptureResponse;
 }
 
-export async function fetchTemperatureReadings(token: string, siteCode: string, limit = 20): Promise<TemperatureReading[]> {
+export async function fetchTemperatureReadings(
+  token: string,
+  siteCode: string,
+  limit = 20,
+  options?: { sectorId?: string; coldPointId?: string },
+): Promise<TemperatureReading[]> {
+  const query = new URLSearchParams({
+    site_code: siteCode,
+    limit: String(limit),
+  });
+  if (options?.sectorId) query.set("sector_id", options.sectorId);
+  if (options?.coldPointId) query.set("cold_point_id", options.coldPointId);
   const response = await fetch(
-    `${API_BASE}/temperatures?site_code=${encodeURIComponent(siteCode)}&limit=${limit}`,
+    `${API_BASE}/temperatures?${query.toString()}`,
     withAuth(token, { method: "GET" }),
   );
   if (!response.ok) {
@@ -188,6 +211,101 @@ export async function fetchTemperatureReadings(token: string, siteCode: string, 
     throw new Error(details || "Caricamento storico temperature fallito.");
   }
   return (await response.json()) as TemperatureReading[];
+}
+
+export async function fetchColdSectors(token: string, siteCode: string): Promise<ColdSector[]> {
+  const response = await fetch(
+    `${API_BASE}/cold-sectors?site_code=${encodeURIComponent(siteCode)}`,
+    withAuth(token, { method: "GET" }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento settori freddo fallito.");
+  }
+  return (await response.json()) as ColdSector[];
+}
+
+export async function createColdSector(params: {
+  token: string;
+  siteCode: string;
+  name: string;
+  sortOrder?: number;
+}): Promise<ColdSector> {
+  const response = await fetch(
+    `${API_BASE}/cold-sectors`,
+    withAuth(params.token, {
+      method: "POST",
+      body: JSON.stringify({
+        site_code: params.siteCode,
+        name: params.name,
+        sort_order: params.sortOrder ?? 0,
+      }),
+    }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Creazione settore fallita.");
+  }
+  return (await response.json()) as ColdSector;
+}
+
+export async function fetchColdPoints(token: string, siteCode: string, sectorId?: string): Promise<ColdPoint[]> {
+  const query = new URLSearchParams({ site_code: siteCode });
+  if (sectorId) query.set("sector_id", sectorId);
+  const response = await fetch(`${API_BASE}/cold-points?${query.toString()}`, withAuth(token, { method: "GET" }));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento punti freddo fallito.");
+  }
+  return (await response.json()) as ColdPoint[];
+}
+
+export async function createColdPoint(params: {
+  token: string;
+  siteCode: string;
+  sectorId: string;
+  name: string;
+  deviceType: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER";
+  sortOrder?: number;
+}): Promise<ColdPoint> {
+  const response = await fetch(
+    `${API_BASE}/cold-points`,
+    withAuth(params.token, {
+      method: "POST",
+      body: JSON.stringify({
+        site_code: params.siteCode,
+        sector_id: params.sectorId,
+        name: params.name,
+        device_type: params.deviceType,
+        sort_order: params.sortOrder ?? 0,
+      }),
+    }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Creazione punto freddo fallita.");
+  }
+  return (await response.json()) as ColdPoint;
+}
+
+export async function fetchTemperatureRoutes(token: string, siteCode: string, sectorId?: string): Promise<TemperatureRoute[]> {
+  const query = new URLSearchParams({ site_code: siteCode });
+  if (sectorId) query.set("sector_id", sectorId);
+  const response = await fetch(`${API_BASE}/temperature-routes?${query.toString()}`, withAuth(token, { method: "GET" }));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento sequenze temperature fallito.");
+  }
+  return (await response.json()) as TemperatureRoute[];
+}
+
+export async function fetchTemperatureRouteSequence(token: string, routeId: string): Promise<TemperatureRoute> {
+  const response = await fetch(`${API_BASE}/temperature-routes/${routeId}/sequence`, withAuth(token, { method: "GET" }));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento sequenza route fallito.");
+  }
+  return (await response.json()) as TemperatureRoute;
 }
 
 export async function updateAlertStatus(
