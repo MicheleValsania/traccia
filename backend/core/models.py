@@ -200,6 +200,34 @@ class OcrJob(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
 
+class TemperatureDeviceType(models.TextChoices):
+    FRIDGE = "FRIDGE", "FRIDGE"
+    FREEZER = "FREEZER", "FREEZER"
+    COLD_ROOM = "COLD_ROOM", "COLD_ROOM"
+    OTHER = "OTHER", "OTHER"
+
+
+class TemperatureReading(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="temperature_readings")
+    device_type = models.CharField(max_length=24, choices=TemperatureDeviceType.choices, default=TemperatureDeviceType.OTHER)
+    device_label = models.CharField(max_length=120, blank=True, default="")
+    temperature_celsius = models.DecimalField(max_digits=6, decimal_places=2)
+    unit = models.CharField(max_length=4, default="C")
+    observed_at = models.DateTimeField(default=timezone.now)
+    source = models.CharField(max_length=24, default="OCR_PHOTO")
+    ocr_provider = models.CharField(max_length=32, blank=True, default="")
+    confidence = models.FloatField(null=True, blank=True)
+    ocr_payload = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="temperature_readings"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-observed_at", "-created_at"]
+
+
 class LotEventType(models.TextChoices):
     CREATED = "CREATED", "CREATED"
     TRANSFORMED = "TRANSFORMED", "TRANSFORMED"

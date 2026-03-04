@@ -13,6 +13,8 @@ from .views import (
     LotValidateView,
     MeView,
     SiteListCreateView,
+    TemperatureCaptureView,
+    TemperatureReadingListView,
     TokenLoginView,
     debug_env,
 )
@@ -24,6 +26,8 @@ urlpatterns = [
     path("sites", SiteListCreateView.as_view(), name="site-list-create"),
     path("import/fiches", FicheImportView.as_view(), name="fiches-import"),
     path("capture/label-photo", CaptureLabelView.as_view(), name="capture-label-photo"),
+    path("temperatures/capture", TemperatureCaptureView.as_view(), name="temperature-capture"),
+    path("temperatures", TemperatureReadingListView.as_view(), name="temperature-list"),
     path("lots/drafts", DraftLotListView.as_view(), name="lots-drafts"),
     path("lots/reconcile-identical", ReconcileIdenticalLotsView.as_view(), name="lots-reconcile-identical"),
     path("lots/<uuid:lot_id>/validate", LotValidateView.as_view(), name="lot-validate"),

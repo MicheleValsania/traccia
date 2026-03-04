@@ -48,4 +48,23 @@ export type AlertItem = {
   status: "PENDING" | "SENT" | "ACKED" | "RESOLVED";
 };
 
-export type TabKey = "capture" | "drafts" | "lifecycle" | "reports";
+export type TemperatureReading = {
+  id: string;
+  site_code: string;
+  device_type: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER";
+  device_label: string;
+  temperature_celsius: string;
+  unit: string;
+  observed_at: string;
+  source: string;
+  ocr_provider: string;
+  confidence: number | null;
+  created_at: string;
+};
+
+export type TemperatureCaptureResponse = {
+  reading: TemperatureReading;
+  privacy: { photo_persisted: boolean };
+};
+
+export type TabKey = "capture" | "drafts" | "lifecycle" | "temperatures" | "reports";

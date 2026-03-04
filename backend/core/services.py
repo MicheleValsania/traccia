@@ -393,6 +393,127 @@ def run_label_ocr(file_name: str, binary: bytes, mime_type: str = "image/jpeg") 
         return result
 
 
+def _normalize_temperature_celsius(value: str) -> float | None:
+    if not value:
+        return None
+    src = value.strip().lower().replace(",", ".")
+    match = re.search(r"(-?[0-9]+(?:\.[0-9]+)?)\s*°?\s*[cf]?", src)
+    if not match:
+        return None
+    temp = float(match.group(1))
+    if "f" in src and "c" not in src:
+        temp = (temp - 32.0) * 5.0 / 9.0
+    if temp < -100 or temp > 100:
+        return None
+    return round(temp, 2)
+
+
+def _detect_device_type(text: str) -> str:
+    normalized = (text or "").strip().lower()
+    if any(token in normalized for token in ["freezer", "congel", "surgel", "negative"]):
+        return "FREEZER"
+    if any(token in normalized for token in ["cold room", "camera fredda", "chambre froide"]):
+        return "COLD_ROOM"
+    if any(token in normalized for token in ["frigo", "fridge", "refriger"]):
+        return "FRIDGE"
+    return "OTHER"
+
+
+def run_temperature_ocr_stub(file_name: str) -> dict[str, Any]:
+    base = file_name.lower()
+    temp_match = re.search(r"(-?[0-9]+(?:[._][0-9]+)?)\s*°?\s*c", base)
+    normalized = None
+    if temp_match:
+        normalized = _normalize_temperature_celsius(temp_match.group(1).replace("_", "."))
+    return {
+        "device_type": _detect_device_type(base),
+        "device_label": "",
+        "temperature_celsius": normalized,
+        "confidence": 0.42,
+        "provider": "stub",
+        "fallback_reason": "claude_disabled_or_missing_sdk",
+    }
+
+
+def run_temperature_ocr(file_name: str, binary: bytes, mime_type: str = "image/jpeg") -> dict[str, Any]:
+    if os.getenv("CLAUDE_ENABLED", "0") != "1" or Anthropic is None:
+        return run_temperature_ocr_stub(file_name=file_name)
+
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+    if not api_key:
+        result = run_temperature_ocr_stub(file_name=file_name)
+        result["fallback_reason"] = "missing_api_key"
+        return result
+
+    attempts = int(os.getenv("CLAUDE_RETRY_ATTEMPTS", "3"))
+    backoff = float(os.getenv("CLAUDE_RETRY_BASE_SLEEP_S", "0.8"))
+
+    try:
+        client = Anthropic(api_key=api_key)
+        encoded = b64encode(binary).decode("utf-8")
+        prompt = (
+            "You are extracting a cold-chain temperature reading from a fridge/freezer display photo. "
+            'Return strict JSON only with keys: {"device_type":"","device_label":"","temperature_celsius":""}. '
+            "Rules: "
+            "1) device_type must be one of FRIDGE, FREEZER, COLD_ROOM, OTHER. "
+            "2) temperature_celsius must be numeric in Celsius, with sign if negative. "
+            "3) If unreadable, return empty string for temperature_celsius. "
+            "4) Do not add commentary or markdown."
+        )
+
+        def _op():
+            return client.messages.create(
+                model=model,
+                max_tokens=250,
+                temperature=0.0,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image",
+                                "source": {"type": "base64", "media_type": mime_type, "data": encoded},
+                            },
+                        ],
+                    }
+                ],
+            )
+
+        message = _retry(_op, attempts=attempts, base_sleep_s=backoff)
+        text_parts = [block.text for block in message.content if getattr(block, "type", "") == "text"]
+        parsed = _extract_first_json("".join(text_parts))
+
+        raw_device_type = str(parsed.get("device_type", "")).strip().upper()
+        raw_device_label = str(parsed.get("device_label", "")).strip()
+        raw_temp = str(parsed.get("temperature_celsius", "")).strip()
+        normalized_temp = _normalize_temperature_celsius(raw_temp)
+
+        if raw_device_type not in {"FRIDGE", "FREEZER", "COLD_ROOM", "OTHER"}:
+            raw_device_type = _detect_device_type(f"{raw_device_label} {file_name}")
+
+        return {
+            "device_type": raw_device_type,
+            "device_label": raw_device_label[:120],
+            "temperature_celsius": normalized_temp,
+            "confidence": 0.8 if normalized_temp is not None else 0.3,
+            "provider": "claude",
+            "fallback_reason": "",
+        }
+    except Exception as exc:
+        logger.exception(
+            "Temperature OCR fallback to stub. file_name=%s mime_type=%s model=%s error=%s",
+            file_name,
+            mime_type,
+            model,
+            exc,
+        )
+        result = run_temperature_ocr_stub(file_name=file_name)
+        result["fallback_reason"] = str(exc)[:400]
+        return result
+
+
 def parse_date_or_none(value: str) -> date | None:
     if not value:
         return None

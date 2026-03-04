@@ -8,6 +8,7 @@ import { CaptureScreen } from "./src/screens/CaptureScreen";
 import { DraftsScreen } from "./src/screens/DraftsScreen";
 import { LifecycleScreen } from "./src/screens/LifecycleScreen";
 import { ReportsScreen } from "./src/screens/ReportsScreen";
+import { TemperatureScreen } from "./src/screens/TemperatureScreen";
 import { appStyles } from "./src/styles";
 import { CaptureResponse, DraftLot, TabKey } from "./src/types";
 
@@ -15,6 +16,7 @@ const TABS: Array<{ key: TabKey; label: string }> = [
   { key: "capture", label: "Capture" },
   { key: "drafts", label: "Draft" },
   { key: "lifecycle", label: "Lifecycle" },
+  { key: "temperatures", label: "Temperatures" },
   { key: "reports", label: "Reports" },
 ];
 
@@ -102,6 +104,9 @@ export default function App() {
         ) : null}
 
         {activeTab === "lifecycle" ? <LifecycleScreen token={token} setError={setError} /> : null}
+        {activeTab === "temperatures" ? (
+          <TemperatureScreen token={token} siteCode={siteCode} setSiteCode={setSiteCode} setError={setError} />
+        ) : null}
         {activeTab === "reports" ? <ReportsScreen siteCode={siteCode} token={token} /> : null}
         {error ? <Text style={appStyles.error}>{error}</Text> : null}
       </ScrollView>

@@ -1,4 +1,4 @@
-import { AlertItem, CaptureResponse, DraftLot, TransformResponse } from "./types";
+import { AlertItem, CaptureResponse, DraftLot, TemperatureCaptureResponse, TemperatureReading, TransformResponse } from "./types";
 
 function buildApiBase(): string {
   const raw = (process.env.EXPO_PUBLIC_API_BASE || "").trim();
@@ -148,6 +148,46 @@ export async function fetchAlerts(token: string, siteCode: string): Promise<Aler
     throw new Error("Caricamento alert fallito.");
   }
   return (await response.json()) as AlertItem[];
+}
+
+export async function captureTemperaturePhoto(params: {
+  token: string;
+  siteCode: string;
+  fileName: string;
+  fileMimeType: string;
+  fileBase64: string;
+  deviceLabel?: string;
+  deviceType?: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER";
+}): Promise<TemperatureCaptureResponse> {
+  const payload = {
+    site_code: params.siteCode,
+    file_name: params.fileName,
+    file_mime_type: params.fileMimeType,
+    file_b64: params.fileBase64,
+    device_label: params.deviceLabel || "",
+    device_type: params.deviceType || undefined,
+  };
+  const response = await fetch(
+    `${API_BASE}/temperatures/capture`,
+    withAuth(params.token, { method: "POST", body: JSON.stringify(payload) }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Rilevazione temperatura fallita.");
+  }
+  return (await response.json()) as TemperatureCaptureResponse;
+}
+
+export async function fetchTemperatureReadings(token: string, siteCode: string, limit = 20): Promise<TemperatureReading[]> {
+  const response = await fetch(
+    `${API_BASE}/temperatures?site_code=${encodeURIComponent(siteCode)}&limit=${limit}`,
+    withAuth(token, { method: "GET" }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento storico temperature fallito.");
+  }
+  return (await response.json()) as TemperatureReading[];
 }
 
 export async function updateAlertStatus(

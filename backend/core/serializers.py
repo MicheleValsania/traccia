@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Alert, AlertStatus, Asset, FicheProduct, Lot, Site
+from .models import Alert, AlertStatus, Asset, FicheProduct, Lot, Site, TemperatureDeviceType, TemperatureReading
 from .services import parse_date_or_none, suggest_products
 
 
@@ -17,6 +17,36 @@ class DraftFromPhotoSerializer(serializers.Serializer):
     file_name = serializers.CharField()
     file_mime_type = serializers.CharField(required=False, allow_blank=True, default="image/jpeg")
     file_b64 = serializers.CharField(help_text="Base64-encoded image file.")
+
+
+class TemperatureCaptureSerializer(serializers.Serializer):
+    site_code = serializers.CharField()
+    file_name = serializers.CharField()
+    file_mime_type = serializers.CharField(required=False, allow_blank=True, default="image/jpeg")
+    file_b64 = serializers.CharField(help_text="Base64-encoded image file.")
+    device_label = serializers.CharField(required=False, allow_blank=True, default="")
+    device_type = serializers.ChoiceField(choices=TemperatureDeviceType.choices, required=False)
+    observed_at = serializers.DateTimeField(required=False)
+
+
+class TemperatureReadingSerializer(serializers.ModelSerializer):
+    site_code = serializers.CharField(source="site.code", read_only=True)
+
+    class Meta:
+        model = TemperatureReading
+        fields = [
+            "id",
+            "site_code",
+            "device_type",
+            "device_label",
+            "temperature_celsius",
+            "unit",
+            "observed_at",
+            "source",
+            "ocr_provider",
+            "confidence",
+            "created_at",
+        ]
 
 
 class LotSerializer(serializers.ModelSerializer):
@@ -161,6 +191,11 @@ class OcrResultSerializer(serializers.Serializer):
 
     def validated_dlc_date(self):
         return parse_date_or_none(self.validated_data.get("dlc_date", ""))
+
+
+class TemperatureListFilterSerializer(serializers.Serializer):
+    site_code = serializers.CharField()
+    limit = serializers.IntegerField(required=False, min_value=1, max_value=200, default=50)
 
 
 class ReconcileDocumentLineSerializer(serializers.Serializer):

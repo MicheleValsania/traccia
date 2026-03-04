@@ -27,6 +27,8 @@ from .models import (
     LotEventType,
     LotTransformation,
     LotDocumentMatch,
+    TemperatureReading,
+    TemperatureDeviceType,
 )
 from .serializers import (
     AlertSerializer,
@@ -40,6 +42,9 @@ from .serializers import (
     OcrResultSerializer,
     ReconcileIdenticalLotsSerializer,
     SiteSerializer,
+    TemperatureCaptureSerializer,
+    TemperatureListFilterSerializer,
+    TemperatureReadingSerializer,
 )
 from .services import (
     build_ocr_warnings,
@@ -49,6 +54,7 @@ from .services import (
     next_internal_code,
     parse_date_or_none,
     run_label_ocr,
+    run_temperature_ocr,
     suggest_products,
     upload_to_drive,
 )
@@ -216,6 +222,97 @@ class CaptureLabelView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class TemperatureCaptureView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        serializer = TemperatureCaptureSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            site = Site.objects.get(code=data["site_code"])
+        except Site.DoesNotExist:
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
+
+        auth_error = _ensure_site_role(
+            request, site, {MembershipRole.ADMIN, MembershipRole.MANAGER, MembershipRole.CHEF, MembershipRole.OPERATOR}
+        )
+        if auth_error:
+            return auth_error
+
+        try:
+            binary = base64.b64decode(data["file_b64"])
+        except Exception:
+            return Response({"detail": "file_b64 is not valid base64."}, status=status.HTTP_400_BAD_REQUEST)
+
+        mime_type = data.get("file_mime_type", "image/jpeg") or "image/jpeg"
+        ocr = run_temperature_ocr(file_name=data["file_name"], binary=binary, mime_type=mime_type)
+        if ocr.get("temperature_celsius") is None:
+            return Response({"detail": "Temperature unreadable from image."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+        ocr_device_type = str(ocr.get("device_type", "") or "").upper()
+        explicit_device_type = data.get("device_type")
+        device_type = explicit_device_type or ocr_device_type or TemperatureDeviceType.OTHER
+        if device_type not in TemperatureDeviceType.values:
+            device_type = TemperatureDeviceType.OTHER
+
+        reading = TemperatureReading.objects.create(
+            site=site,
+            device_type=device_type,
+            device_label=(data.get("device_label") or ocr.get("device_label") or "").strip()[:120],
+            temperature_celsius=Decimal(str(ocr["temperature_celsius"])),
+            unit="C",
+            observed_at=data.get("observed_at") or timezone.now(),
+            source="OCR_PHOTO",
+            ocr_provider=str(ocr.get("provider", "") or ""),
+            confidence=ocr.get("confidence"),
+            ocr_payload=ocr,
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+
+        log_audit_event(
+            action="TEMPERATURE_READING_CAPTURED_OCR",
+            request=request,
+            site=site,
+            object_type="TemperatureReading",
+            object_id=str(reading.id),
+            payload={
+                "device_type": reading.device_type,
+                "device_label": reading.device_label,
+                "temperature_celsius": str(reading.temperature_celsius),
+                "ocr_provider": reading.ocr_provider,
+                "photo_persisted": False,
+            },
+        )
+        return Response(
+            {
+                "reading": TemperatureReadingSerializer(reading).data,
+                "privacy": {"photo_persisted": False},
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class TemperatureReadingListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        filters = TemperatureListFilterSerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+        params = filters.validated_data
+        site = Site.objects.filter(code=params["site_code"]).first()
+        if not site:
+            return Response([], status=status.HTTP_200_OK)
+        auth_error = _ensure_site_role(
+            request, site, {MembershipRole.ADMIN, MembershipRole.MANAGER, MembershipRole.CHEF, MembershipRole.OPERATOR}
+        )
+        if auth_error:
+            return auth_error
+        qs = TemperatureReading.objects.filter(site=site).order_by("-observed_at", "-created_at")[: params["limit"]]
+        return Response(TemperatureReadingSerializer(qs, many=True).data, status=status.HTTP_200_OK)
 
 
 class DraftLotListView(generics.ListAPIView):

@@ -58,6 +58,8 @@ Note operative:
 - `POST /api/sites`
 - `POST /api/import/fiches`
 - `POST /api/capture/label-photo`
+- `POST /api/temperatures/capture` (OCR temperatura da foto, senza persistenza immagine)
+- `GET /api/temperatures?site_code=PARIS01&limit=20`
 - `GET /api/lots/drafts?site_code=PARIS01`
 - `POST /api/lots/{lot_id}/validate`
 - `POST /api/lots/reconcile-identical`
