@@ -1,6 +1,19 @@
 from rest_framework import serializers
 
-from .models import Alert, AlertStatus, Asset, FicheProduct, Lot, Site, TemperatureDeviceType, TemperatureReading
+from .models import (
+    Alert,
+    AlertStatus,
+    Asset,
+    ColdPoint,
+    ColdSector,
+    FicheProduct,
+    Lot,
+    Site,
+    TemperatureDeviceType,
+    TemperatureReading,
+    TemperatureRoute,
+    TemperatureRouteStep,
+)
 from .services import parse_date_or_none, suggest_products
 
 
@@ -26,17 +39,26 @@ class TemperatureCaptureSerializer(serializers.Serializer):
     file_b64 = serializers.CharField(help_text="Base64-encoded image file.")
     device_label = serializers.CharField(required=False, allow_blank=True, default="")
     device_type = serializers.ChoiceField(choices=TemperatureDeviceType.choices, required=False)
+    cold_point_id = serializers.UUIDField(required=False)
     observed_at = serializers.DateTimeField(required=False)
 
 
 class TemperatureReadingSerializer(serializers.ModelSerializer):
     site_code = serializers.CharField(source="site.code", read_only=True)
+    cold_point_id = serializers.UUIDField(source="cold_point.id", read_only=True)
+    cold_point_name = serializers.CharField(source="cold_point.name", read_only=True)
+    sector_id = serializers.UUIDField(source="cold_point.sector.id", read_only=True)
+    sector_name = serializers.CharField(source="cold_point.sector.name", read_only=True)
 
     class Meta:
         model = TemperatureReading
         fields = [
             "id",
             "site_code",
+            "cold_point_id",
+            "cold_point_name",
+            "sector_id",
+            "sector_name",
             "device_type",
             "device_label",
             "temperature_celsius",
@@ -47,6 +69,113 @@ class TemperatureReadingSerializer(serializers.ModelSerializer):
             "confidence",
             "created_at",
         ]
+
+
+class ColdSectorSerializer(serializers.ModelSerializer):
+    site_code = serializers.CharField(source="site.code", read_only=True)
+
+    class Meta:
+        model = ColdSector
+        fields = ["id", "site_code", "name", "sort_order", "is_active", "created_at", "updated_at"]
+
+
+class ColdSectorWriteSerializer(serializers.Serializer):
+    site_code = serializers.CharField()
+    name = serializers.CharField(max_length=120)
+    sort_order = serializers.IntegerField(required=False, min_value=0, default=0)
+    is_active = serializers.BooleanField(required=False, default=True)
+
+
+class ColdPointSerializer(serializers.ModelSerializer):
+    site_code = serializers.CharField(source="site.code", read_only=True)
+    sector_id = serializers.UUIDField(source="sector.id", read_only=True)
+    sector_name = serializers.CharField(source="sector.name", read_only=True)
+
+    class Meta:
+        model = ColdPoint
+        fields = [
+            "id",
+            "site_code",
+            "sector_id",
+            "sector_name",
+            "name",
+            "device_type",
+            "sort_order",
+            "min_temp_celsius",
+            "max_temp_celsius",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class ColdPointWriteSerializer(serializers.Serializer):
+    site_code = serializers.CharField()
+    sector_id = serializers.UUIDField()
+    name = serializers.CharField(max_length=120)
+    device_type = serializers.ChoiceField(choices=TemperatureDeviceType.choices, required=False, default=TemperatureDeviceType.OTHER)
+    sort_order = serializers.IntegerField(required=False, min_value=0, default=0)
+    min_temp_celsius = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+    max_temp_celsius = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+    is_active = serializers.BooleanField(required=False, default=True)
+
+
+class TemperatureRouteStepSerializer(serializers.ModelSerializer):
+    cold_point_name = serializers.CharField(source="cold_point.name", read_only=True)
+    cold_point_device_type = serializers.CharField(source="cold_point.device_type", read_only=True)
+    sector_name = serializers.CharField(source="cold_point.sector.name", read_only=True)
+
+    class Meta:
+        model = TemperatureRouteStep
+        fields = [
+            "id",
+            "route",
+            "cold_point",
+            "cold_point_name",
+            "cold_point_device_type",
+            "sector_name",
+            "step_order",
+            "is_required",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class TemperatureRouteSerializer(serializers.ModelSerializer):
+    site_code = serializers.CharField(source="site.code", read_only=True)
+    sector_id = serializers.UUIDField(source="sector.id", read_only=True)
+    sector_name = serializers.CharField(source="sector.name", read_only=True)
+    steps = TemperatureRouteStepSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = TemperatureRoute
+        fields = [
+            "id",
+            "site_code",
+            "sector_id",
+            "sector_name",
+            "name",
+            "sort_order",
+            "is_active",
+            "steps",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class TemperatureRouteWriteSerializer(serializers.Serializer):
+    site_code = serializers.CharField()
+    name = serializers.CharField(max_length=120)
+    sector_id = serializers.UUIDField(required=False, allow_null=True)
+    sort_order = serializers.IntegerField(required=False, min_value=0, default=0)
+    is_active = serializers.BooleanField(required=False, default=True)
+
+
+class TemperatureRouteStepWriteSerializer(serializers.Serializer):
+    route_id = serializers.UUIDField()
+    cold_point_id = serializers.UUIDField()
+    step_order = serializers.IntegerField(min_value=1)
+    is_required = serializers.BooleanField(required=False, default=True)
 
 
 class LotSerializer(serializers.ModelSerializer):
@@ -196,6 +325,8 @@ class OcrResultSerializer(serializers.Serializer):
 class TemperatureListFilterSerializer(serializers.Serializer):
     site_code = serializers.CharField()
     limit = serializers.IntegerField(required=False, min_value=1, max_value=200, default=50)
+    sector_id = serializers.UUIDField(required=False)
+    cold_point_id = serializers.UUIDField(required=False)
 
 
 class ReconcileDocumentLineSerializer(serializers.Serializer):

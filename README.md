@@ -58,6 +58,11 @@ Note operative:
 - `POST /api/sites`
 - `POST /api/import/fiches`
 - `POST /api/capture/label-photo`
+- `GET/POST /api/cold-sectors`
+- `GET/POST /api/cold-points`
+- `GET/POST /api/temperature-routes`
+- `GET/POST /api/temperature-routes/steps`
+- `GET /api/temperature-routes/{route_id}/sequence`
 - `POST /api/temperatures/capture` (OCR temperatura da foto, senza persistenza immagine)
 - `GET /api/temperatures?site_code=PARIS01&limit=20`
 - `GET /api/lots/drafts?site_code=PARIS01`

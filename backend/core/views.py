@@ -15,6 +15,8 @@ from .models import (
     Alert,
     Asset,
     AssetType,
+    ColdPoint,
+    ColdSector,
     FicheProduct,
     Lot,
     LotStatus,
@@ -23,12 +25,14 @@ from .models import (
     OcrJob,
     OcrJobStatus,
     Site,
+    TemperatureDeviceType,
     LotEvent,
     LotEventType,
     LotTransformation,
     LotDocumentMatch,
     TemperatureReading,
-    TemperatureDeviceType,
+    TemperatureRoute,
+    TemperatureRouteStep,
 )
 from .serializers import (
     AlertSerializer,
@@ -42,9 +46,17 @@ from .serializers import (
     OcrResultSerializer,
     ReconcileIdenticalLotsSerializer,
     SiteSerializer,
+    ColdSectorSerializer,
+    ColdSectorWriteSerializer,
+    ColdPointSerializer,
+    ColdPointWriteSerializer,
     TemperatureCaptureSerializer,
     TemperatureListFilterSerializer,
     TemperatureReadingSerializer,
+    TemperatureRouteSerializer,
+    TemperatureRouteWriteSerializer,
+    TemperatureRouteStepSerializer,
+    TemperatureRouteStepWriteSerializer,
 )
 from .services import (
     build_ocr_warnings,
@@ -110,6 +122,21 @@ def _ensure_site_role(request, site: Site, allowed_roles: set[str], user=None) -
     return None
 
 
+SITE_READ_ROLES = {
+    MembershipRole.ADMIN,
+    MembershipRole.MANAGER,
+    MembershipRole.CHEF,
+    MembershipRole.OPERATOR,
+    MembershipRole.AUDITOR,
+}
+SITE_WRITE_ROLES = {
+    MembershipRole.ADMIN,
+    MembershipRole.MANAGER,
+    MembershipRole.CHEF,
+    MembershipRole.OPERATOR,
+}
+
+
 class FicheImportView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -152,9 +179,7 @@ class CaptureLabelView(APIView):
             site = Site.objects.get(code=data["site_code"])
         except Site.DoesNotExist:
             return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
-        auth_error = _ensure_site_role(
-            request, site, {MembershipRole.ADMIN, MembershipRole.MANAGER, MembershipRole.CHEF, MembershipRole.OPERATOR}
-        )
+        auth_error = _ensure_site_role(request, site, SITE_WRITE_ROLES)
         if auth_error:
             return auth_error
 
@@ -224,6 +249,225 @@ class CaptureLabelView(APIView):
         )
 
 
+class ColdSectorListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        site_code = request.query_params.get("site_code", "").strip()
+        if not site_code:
+            return Response({"detail": "site_code is required."}, status=status.HTTP_400_BAD_REQUEST)
+        site = Site.objects.filter(code=site_code).first()
+        if not site:
+            return Response([], status=status.HTTP_200_OK)
+        auth_error = _ensure_site_role(request, site, SITE_READ_ROLES)
+        if auth_error:
+            return auth_error
+        qs = ColdSector.objects.filter(site=site).order_by("sort_order", "name")
+        return Response(ColdSectorSerializer(qs, many=True).data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        payload = ColdSectorWriteSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        site = Site.objects.filter(code=data["site_code"]).first()
+        if not site:
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_site_role(request, site, SITE_WRITE_ROLES)
+        if auth_error:
+            return auth_error
+        sector = ColdSector.objects.create(
+            site=site,
+            name=data["name"].strip(),
+            sort_order=data.get("sort_order", 0),
+            is_active=data.get("is_active", True),
+        )
+        log_audit_event(
+            action="COLD_SECTOR_CREATED",
+            request=request,
+            site=site,
+            object_type="ColdSector",
+            object_id=str(sector.id),
+            payload={"name": sector.name, "sort_order": sector.sort_order},
+        )
+        return Response(ColdSectorSerializer(sector).data, status=status.HTTP_201_CREATED)
+
+
+class ColdPointListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        site_code = request.query_params.get("site_code", "").strip()
+        if not site_code:
+            return Response({"detail": "site_code is required."}, status=status.HTTP_400_BAD_REQUEST)
+        site = Site.objects.filter(code=site_code).first()
+        if not site:
+            return Response([], status=status.HTTP_200_OK)
+        auth_error = _ensure_site_role(request, site, SITE_READ_ROLES)
+        if auth_error:
+            return auth_error
+        qs = ColdPoint.objects.select_related("sector").filter(site=site)
+        sector_id = request.query_params.get("sector_id", "").strip()
+        if sector_id:
+            qs = qs.filter(sector_id=sector_id)
+        qs = qs.order_by("sector__sort_order", "sort_order", "name")
+        return Response(ColdPointSerializer(qs, many=True).data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        payload = ColdPointWriteSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        site = Site.objects.filter(code=data["site_code"]).first()
+        if not site:
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_site_role(request, site, SITE_WRITE_ROLES)
+        if auth_error:
+            return auth_error
+        sector = ColdSector.objects.filter(id=data["sector_id"], site=site).first()
+        if not sector:
+            return Response({"detail": "Unknown sector_id for site."}, status=status.HTTP_400_BAD_REQUEST)
+        point = ColdPoint.objects.create(
+            site=site,
+            sector=sector,
+            name=data["name"].strip(),
+            device_type=data.get("device_type", TemperatureDeviceType.OTHER),
+            sort_order=data.get("sort_order", 0),
+            min_temp_celsius=data.get("min_temp_celsius"),
+            max_temp_celsius=data.get("max_temp_celsius"),
+            is_active=data.get("is_active", True),
+        )
+        log_audit_event(
+            action="COLD_POINT_CREATED",
+            request=request,
+            site=site,
+            object_type="ColdPoint",
+            object_id=str(point.id),
+            payload={"name": point.name, "sector_id": str(sector.id), "device_type": point.device_type},
+        )
+        return Response(ColdPointSerializer(point).data, status=status.HTTP_201_CREATED)
+
+
+class TemperatureRouteListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        site_code = request.query_params.get("site_code", "").strip()
+        if not site_code:
+            return Response({"detail": "site_code is required."}, status=status.HTTP_400_BAD_REQUEST)
+        site = Site.objects.filter(code=site_code).first()
+        if not site:
+            return Response([], status=status.HTTP_200_OK)
+        auth_error = _ensure_site_role(request, site, SITE_READ_ROLES)
+        if auth_error:
+            return auth_error
+        qs = TemperatureRoute.objects.select_related("site", "sector").prefetch_related("steps__cold_point__sector").filter(site=site)
+        sector_id = request.query_params.get("sector_id", "").strip()
+        if sector_id:
+            qs = qs.filter(sector_id=sector_id)
+        qs = qs.order_by("sort_order", "name")
+        return Response(TemperatureRouteSerializer(qs, many=True).data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        payload = TemperatureRouteWriteSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        site = Site.objects.filter(code=data["site_code"]).first()
+        if not site:
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_site_role(request, site, SITE_WRITE_ROLES)
+        if auth_error:
+            return auth_error
+        sector = None
+        if data.get("sector_id"):
+            sector = ColdSector.objects.filter(id=data["sector_id"], site=site).first()
+            if not sector:
+                return Response({"detail": "Unknown sector_id for site."}, status=status.HTTP_400_BAD_REQUEST)
+        route = TemperatureRoute.objects.create(
+            site=site,
+            sector=sector,
+            name=data["name"].strip(),
+            sort_order=data.get("sort_order", 0),
+            is_active=data.get("is_active", True),
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+        log_audit_event(
+            action="TEMPERATURE_ROUTE_CREATED",
+            request=request,
+            site=site,
+            object_type="TemperatureRoute",
+            object_id=str(route.id),
+            payload={"name": route.name, "sector_id": str(sector.id) if sector else ""},
+        )
+        route = TemperatureRoute.objects.select_related("site", "sector").prefetch_related("steps__cold_point__sector").get(id=route.id)
+        return Response(TemperatureRouteSerializer(route).data, status=status.HTTP_201_CREATED)
+
+
+class TemperatureRouteStepListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        route_id = request.query_params.get("route_id", "").strip()
+        if not route_id:
+            return Response({"detail": "route_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        route = TemperatureRoute.objects.select_related("site", "sector").filter(id=route_id).first()
+        if not route:
+            return Response([], status=status.HTTP_200_OK)
+        auth_error = _ensure_site_role(request, route.site, SITE_READ_ROLES)
+        if auth_error:
+            return auth_error
+        qs = TemperatureRouteStep.objects.select_related("cold_point__sector", "route").filter(route=route).order_by("step_order", "created_at")
+        return Response(TemperatureRouteStepSerializer(qs, many=True).data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        payload = TemperatureRouteStepWriteSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        route = TemperatureRoute.objects.select_related("site", "sector").filter(id=data["route_id"]).first()
+        if not route:
+            return Response({"detail": "Unknown route_id."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_site_role(request, route.site, SITE_WRITE_ROLES)
+        if auth_error:
+            return auth_error
+        cold_point = ColdPoint.objects.select_related("sector").filter(id=data["cold_point_id"], site=route.site).first()
+        if not cold_point:
+            return Response({"detail": "Unknown cold_point_id for route site."}, status=status.HTTP_400_BAD_REQUEST)
+        if route.sector_id and cold_point.sector_id != route.sector_id:
+            return Response({"detail": "cold_point sector does not match route sector."}, status=status.HTTP_400_BAD_REQUEST)
+        step = TemperatureRouteStep.objects.create(
+            route=route,
+            cold_point=cold_point,
+            step_order=data["step_order"],
+            is_required=data.get("is_required", True),
+        )
+        log_audit_event(
+            action="TEMPERATURE_ROUTE_STEP_CREATED",
+            request=request,
+            site=route.site,
+            object_type="TemperatureRouteStep",
+            object_id=str(step.id),
+            payload={"route_id": str(route.id), "cold_point_id": str(cold_point.id), "step_order": step.step_order},
+        )
+        step = TemperatureRouteStep.objects.select_related("cold_point__sector", "route").get(id=step.id)
+        return Response(TemperatureRouteStepSerializer(step).data, status=status.HTTP_201_CREATED)
+
+
+class TemperatureRouteSequenceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, route_id):
+        route = (
+            TemperatureRoute.objects.select_related("site", "sector")
+            .prefetch_related("steps__cold_point__sector")
+            .filter(id=route_id)
+            .first()
+        )
+        if not route:
+            return Response({"detail": "Route not found."}, status=status.HTTP_404_NOT_FOUND)
+        auth_error = _ensure_site_role(request, route.site, SITE_READ_ROLES)
+        if auth_error:
+            return auth_error
+        return Response(TemperatureRouteSerializer(route).data, status=status.HTTP_200_OK)
+
+
 class TemperatureCaptureView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -253,16 +497,24 @@ class TemperatureCaptureView(APIView):
         if ocr.get("temperature_celsius") is None:
             return Response({"detail": "Temperature unreadable from image."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
+        cold_point = None
+        if data.get("cold_point_id"):
+            cold_point = ColdPoint.objects.select_related("sector").filter(id=data["cold_point_id"], site=site).first()
+            if not cold_point:
+                return Response({"detail": "Unknown cold_point_id for site."}, status=status.HTTP_400_BAD_REQUEST)
+
         ocr_device_type = str(ocr.get("device_type", "") or "").upper()
         explicit_device_type = data.get("device_type")
-        device_type = explicit_device_type or ocr_device_type or TemperatureDeviceType.OTHER
+        device_type = explicit_device_type or (cold_point.device_type if cold_point else "") or ocr_device_type or TemperatureDeviceType.OTHER
         if device_type not in TemperatureDeviceType.values:
             device_type = TemperatureDeviceType.OTHER
+        device_label = (data.get("device_label") or (cold_point.name if cold_point else "") or ocr.get("device_label") or "").strip()[:120]
 
         reading = TemperatureReading.objects.create(
             site=site,
+            cold_point=cold_point,
             device_type=device_type,
-            device_label=(data.get("device_label") or ocr.get("device_label") or "").strip()[:120],
+            device_label=device_label,
             temperature_celsius=Decimal(str(ocr["temperature_celsius"])),
             unit="C",
             observed_at=data.get("observed_at") or timezone.now(),
@@ -282,6 +534,7 @@ class TemperatureCaptureView(APIView):
             payload={
                 "device_type": reading.device_type,
                 "device_label": reading.device_label,
+                "cold_point_id": str(reading.cold_point_id) if reading.cold_point_id else "",
                 "temperature_celsius": str(reading.temperature_celsius),
                 "ocr_provider": reading.ocr_provider,
                 "photo_persisted": False,
@@ -306,12 +559,15 @@ class TemperatureReadingListView(APIView):
         site = Site.objects.filter(code=params["site_code"]).first()
         if not site:
             return Response([], status=status.HTTP_200_OK)
-        auth_error = _ensure_site_role(
-            request, site, {MembershipRole.ADMIN, MembershipRole.MANAGER, MembershipRole.CHEF, MembershipRole.OPERATOR}
-        )
+        auth_error = _ensure_site_role(request, site, SITE_READ_ROLES)
         if auth_error:
             return auth_error
-        qs = TemperatureReading.objects.filter(site=site).order_by("-observed_at", "-created_at")[: params["limit"]]
+        qs = TemperatureReading.objects.select_related("cold_point__sector").filter(site=site)
+        if params.get("sector_id"):
+            qs = qs.filter(cold_point__sector_id=params["sector_id"])
+        if params.get("cold_point_id"):
+            qs = qs.filter(cold_point_id=params["cold_point_id"])
+        qs = qs.order_by("-observed_at", "-created_at")[: params["limit"]]
         return Response(TemperatureReadingSerializer(qs, many=True).data, status=status.HTTP_200_OK)
 
 

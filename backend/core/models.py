@@ -210,6 +210,9 @@ class TemperatureDeviceType(models.TextChoices):
 class TemperatureReading(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="temperature_readings")
+    cold_point = models.ForeignKey(
+        "ColdPoint", null=True, blank=True, on_delete=models.SET_NULL, related_name="temperature_readings"
+    )
     device_type = models.CharField(max_length=24, choices=TemperatureDeviceType.choices, default=TemperatureDeviceType.OTHER)
     device_label = models.CharField(max_length=120, blank=True, default="")
     temperature_celsius = models.DecimalField(max_digits=6, decimal_places=2)
@@ -226,6 +229,75 @@ class TemperatureReading(models.Model):
 
     class Meta:
         ordering = ["-observed_at", "-created_at"]
+
+
+class ColdSector(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="cold_sectors")
+    name = models.CharField(max_length=120)
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+        unique_together = ("site", "name")
+
+
+class ColdPoint(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="cold_points")
+    sector = models.ForeignKey(ColdSector, on_delete=models.CASCADE, related_name="cold_points")
+    name = models.CharField(max_length=120)
+    device_type = models.CharField(max_length=24, choices=TemperatureDeviceType.choices, default=TemperatureDeviceType.OTHER)
+    sort_order = models.PositiveIntegerField(default=0)
+    min_temp_celsius = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    max_temp_celsius = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+        unique_together = ("sector", "name")
+
+    def save(self, *args, **kwargs):
+        if self.sector_id and self.site_id != self.sector.site_id:
+            self.site_id = self.sector.site_id
+        super().save(*args, **kwargs)
+
+
+class TemperatureRoute(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="temperature_routes")
+    sector = models.ForeignKey(ColdSector, null=True, blank=True, on_delete=models.SET_NULL, related_name="temperature_routes")
+    name = models.CharField(max_length=120)
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_temperature_routes"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+        unique_together = ("site", "name")
+
+
+class TemperatureRouteStep(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    route = models.ForeignKey(TemperatureRoute, on_delete=models.CASCADE, related_name="steps")
+    cold_point = models.ForeignKey(ColdPoint, on_delete=models.CASCADE, related_name="route_steps")
+    step_order = models.PositiveIntegerField()
+    is_required = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["step_order", "created_at"]
+        unique_together = (("route", "step_order"), ("route", "cold_point"))
 
 
 class LotEventType(models.TextChoices):
