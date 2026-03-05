@@ -58,6 +58,8 @@ class TemperatureConfirmSerializer(serializers.Serializer):
 
 class TemperatureReadingSerializer(serializers.ModelSerializer):
     site_code = serializers.CharField(source="site.code", read_only=True)
+    register_id = serializers.UUIDField(source="register.id", read_only=True)
+    register_name = serializers.CharField(source="register.name", read_only=True)
     cold_point_id = serializers.UUIDField(source="cold_point.id", read_only=True)
     cold_point_name = serializers.CharField(source="cold_point.name", read_only=True)
     sector_id = serializers.UUIDField(source="cold_point.sector.id", read_only=True)
@@ -68,12 +70,15 @@ class TemperatureReadingSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "site_code",
+            "register_id",
+            "register_name",
             "cold_point_id",
             "cold_point_name",
             "sector_id",
             "sector_name",
             "device_type",
             "device_label",
+            "reference_temperature_celsius",
             "temperature_celsius",
             "unit",
             "observed_at",
@@ -356,6 +361,13 @@ class TemperatureListFilterSerializer(serializers.Serializer):
     limit = serializers.IntegerField(required=False, min_value=1, max_value=200, default=50)
     sector_id = serializers.UUIDField(required=False)
     cold_point_id = serializers.UUIDField(required=False)
+
+
+class TemperatureRegisterReportFilterSerializer(serializers.Serializer):
+    site_code = serializers.CharField()
+    sector_id = serializers.UUIDField(required=False)
+    from_date = serializers.DateField(required=False)
+    to_date = serializers.DateField(required=False)
 
 
 class ReconcileDocumentLineSerializer(serializers.Serializer):

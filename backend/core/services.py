@@ -18,7 +18,7 @@ from googleapiclient.http import MediaIoBaseUpload
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
-from .models import AuditLog, FicheProduct, Lot, Site
+from .models import AuditLog, FicheProduct, Lot, Site, TemperatureReading
 
 try:
     from anthropic import Anthropic
@@ -641,3 +641,18 @@ def lots_to_pdf(queryset: QuerySet[Lot]) -> bytes:
             pdf.setFont("Helvetica", 9)
     pdf.save()
     return buffer.getvalue()
+
+
+def temperatures_register_to_csv(queryset: QuerySet[TemperatureReading]) -> str:
+    output = StringIO()
+    output.write("register_name,sector_name,cold_point_code,date,time,reference_temperature_celsius,measured_temperature_celsius\n")
+    for reading in queryset:
+        observed = timezone.localtime(reading.observed_at) if timezone.is_aware(reading.observed_at) else reading.observed_at
+        cold_point_code = reading.cold_point.name if reading.cold_point else reading.device_label
+        sector_name = reading.cold_point.sector.name if reading.cold_point else ""
+        register_name = reading.register.name if reading.register else sector_name
+        output.write(
+            f"{register_name},{sector_name},{cold_point_code},{observed.date().isoformat()},"
+            f"{observed.time().strftime('%H:%M:%S')},{reading.reference_temperature_celsius or ''},{reading.temperature_celsius}\n"
+        )
+    return output.getvalue()

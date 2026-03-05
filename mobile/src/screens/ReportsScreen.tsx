@@ -1,7 +1,7 @@
 import React from "react";
 import { Linking, Pressable, Text, View } from "react-native";
 
-import { fetchAlerts, reportCsvUrl, reportPdfUrl, updateAlertStatus } from "../api";
+import { fetchAlerts, reportCsvUrl, reportPdfUrl, reportTemperatureCsvUrl, updateAlertStatus } from "../api";
 import { appStyles } from "../styles";
 import { AlertItem } from "../types";
 
@@ -16,6 +16,7 @@ export function ReportsScreen(props: Props) {
   const [error, setError] = React.useState("");
   const csv = reportCsvUrl(props.siteCode, props.token);
   const pdf = reportPdfUrl(props.siteCode, props.token);
+  const tempCsv = reportTemperatureCsvUrl(props.siteCode, props.token);
 
   async function refreshAlerts() {
     if (!props.token) return;
@@ -75,6 +76,9 @@ export function ReportsScreen(props: Props) {
       </Pressable>
       <Pressable style={appStyles.linkButton} onPress={() => Linking.openURL(pdf)} disabled={!props.token}>
         <Text style={appStyles.linkText}>Apri export PDF</Text>
+      </Pressable>
+      <Pressable style={appStyles.linkButton} onPress={() => Linking.openURL(tempCsv)} disabled={!props.token}>
+        <Text style={appStyles.linkText}>Apri registro temperature CSV</Text>
       </Pressable>
       {error ? <Text style={appStyles.error}>{error}</Text> : null}
     </View>

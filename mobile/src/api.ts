@@ -160,6 +160,10 @@ export function reportPdfUrl(siteCode: string, token: string): string {
   return `${API_BASE}/reports/lots.pdf?site_code=${siteCode}&token=${token}`;
 }
 
+export function reportTemperatureCsvUrl(siteCode: string, token: string): string {
+  return `${API_BASE}/reports/temperatures.csv?site_code=${siteCode}&token=${token}`;
+}
+
 export async function fetchAlerts(token: string, siteCode: string): Promise<AlertItem[]> {
   const response = await fetch(
     `${API_BASE}/alerts?site_code=${siteCode}&due_only=1&include_resolved=0`,

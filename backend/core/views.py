@@ -31,6 +31,7 @@ from .models import (
     LotTransformation,
     LotDocumentMatch,
     TemperatureReading,
+    TemperatureRegister,
     TemperatureRoute,
     TemperatureRouteStep,
 )
@@ -55,6 +56,7 @@ from .serializers import (
     TemperatureCaptureSerializer,
     TemperatureConfirmSerializer,
     TemperatureListFilterSerializer,
+    TemperatureRegisterReportFilterSerializer,
     TemperatureReadingSerializer,
     TemperatureRouteSerializer,
     TemperatureRouteWriteSerializer,
@@ -66,6 +68,7 @@ from .services import (
     log_audit_event,
     lots_to_csv,
     lots_to_pdf,
+    temperatures_register_to_csv,
     next_internal_code,
     parse_date_or_none,
     run_label_ocr,
@@ -158,6 +161,24 @@ def _temperature_warnings(*, value_celsius: float, device_type: str, cold_point:
         if cold_point.max_temp_celsius is not None and value_celsius > float(cold_point.max_temp_celsius):
             warnings.append(f"Above configured max for point: {cold_point.max_temp_celsius} C")
     return warnings
+
+
+def _reference_temperature_celsius(*, device_type: str, cold_point: ColdPoint | None) -> Decimal | None:
+    if cold_point:
+        min_t = cold_point.min_temp_celsius
+        max_t = cold_point.max_temp_celsius
+        if min_t is not None and max_t is not None:
+            return (Decimal(min_t) + Decimal(max_t)) / Decimal("2")
+        if min_t is not None:
+            return Decimal(min_t)
+        if max_t is not None:
+            return Decimal(max_t)
+    defaults = {
+        TemperatureDeviceType.FRIDGE: Decimal("4.00"),
+        TemperatureDeviceType.FREEZER: Decimal("-18.00"),
+        TemperatureDeviceType.COLD_ROOM: Decimal("3.00"),
+    }
+    return defaults.get(device_type)
 
 
 class FicheImportView(APIView):
@@ -304,6 +325,7 @@ class ColdSectorListCreateView(APIView):
             sort_order=data.get("sort_order", 0),
             is_active=data.get("is_active", True),
         )
+        TemperatureRegister.objects.create(site=site, sector=sector, name=sector.name)
         log_audit_event(
             action="COLD_SECTOR_CREATED",
             request=request,
@@ -335,6 +357,10 @@ class ColdSectorDetailView(APIView):
         if "is_active" in data:
             sector.is_active = data["is_active"]
         sector.save()
+        register = TemperatureRegister.objects.filter(sector=sector).first()
+        if register:
+            register.name = sector.name
+            register.save(update_fields=["name", "updated_at"])
         log_audit_event(
             action="COLD_SECTOR_UPDATED",
             request=request,
@@ -615,10 +641,12 @@ class TemperatureCaptureView(APIView):
             return Response({"detail": "Temperature unreadable from image."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
         cold_point = None
+        register = None
         if data.get("cold_point_id"):
             cold_point = ColdPoint.objects.select_related("sector").filter(id=data["cold_point_id"], site=site).first()
             if not cold_point:
                 return Response({"detail": "Unknown cold_point_id for site."}, status=status.HTTP_400_BAD_REQUEST)
+            register = TemperatureRegister.objects.filter(sector=cold_point.sector).first()
 
         ocr_device_type = str(ocr.get("device_type", "") or "").upper() or TemperatureDeviceType.OTHER
         explicit_device_type = data.get("device_type")
@@ -696,6 +724,7 @@ class TemperatureConfirmView(APIView):
             device_type = TemperatureDeviceType.OTHER
         device_label = (data.get("device_label") or (cold_point.name if cold_point else "")).strip()[:120]
         confirmed_temp = Decimal(str(data["confirmed_temperature_celsius"]))
+        reference_temp = _reference_temperature_celsius(device_type=device_type, cold_point=cold_point)
         warnings = _temperature_warnings(
             value_celsius=float(confirmed_temp),
             device_type=device_type,
@@ -704,9 +733,11 @@ class TemperatureConfirmView(APIView):
 
         reading = TemperatureReading.objects.create(
             site=site,
+            register=register,
             cold_point=cold_point,
             device_type=device_type,
             device_label=device_label,
+            reference_temperature_celsius=reference_temp,
             temperature_celsius=confirmed_temp,
             unit="C",
             observed_at=data.get("observed_at") or timezone.now(),
@@ -730,6 +761,8 @@ class TemperatureConfirmView(APIView):
             object_id=str(reading.id),
             payload={
                 "cold_point_id": str(reading.cold_point_id) if reading.cold_point_id else "",
+                "register_id": str(reading.register_id) if reading.register_id else "",
+                "reference_temperature_celsius": str(reading.reference_temperature_celsius or ""),
                 "temperature_celsius": str(reading.temperature_celsius),
                 "device_type": reading.device_type,
                 "warnings": warnings,
@@ -1164,6 +1197,37 @@ class LotReportPdfView(APIView):
         response = HttpResponse(pdf, content_type="application/pdf")
         response["Content-Disposition"] = 'attachment; filename="lots_report.pdf"'
         log_audit_event(action="REPORT_PDF_EXPORTED", request=request, actor=user, site=site, payload=params)
+        return response
+
+
+class TemperatureRegisterCsvView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        filters = TemperatureRegisterReportFilterSerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+        params = filters.validated_data
+        site = Site.objects.filter(code=params["site_code"]).first()
+        if not site:
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
+        user = _resolve_user(request)
+        auth_error = _ensure_site_role(request, site, SITE_READ_ROLES, user=user)
+        if auth_error:
+            return auth_error
+
+        qs = TemperatureReading.objects.select_related("register", "cold_point__sector").filter(site=site)
+        if params.get("sector_id"):
+            qs = qs.filter(cold_point__sector_id=params["sector_id"])
+        if params.get("from_date"):
+            qs = qs.filter(observed_at__date__gte=params["from_date"])
+        if params.get("to_date"):
+            qs = qs.filter(observed_at__date__lte=params["to_date"])
+        qs = qs.order_by("-observed_at", "-created_at")
+
+        csv_data = temperatures_register_to_csv(qs)
+        response = HttpResponse(csv_data, content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="temperature_register.csv"'
+        log_audit_event(action="TEMPERATURE_REGISTER_CSV_EXPORTED", request=request, actor=user, site=site, payload=params)
         return response
 
 

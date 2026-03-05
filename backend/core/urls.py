@@ -19,6 +19,7 @@ from .views import (
     SiteListCreateView,
     TemperatureConfirmView,
     TemperatureCaptureView,
+    TemperatureRegisterCsvView,
     TemperatureReadingListView,
     TemperatureRouteListCreateView,
     TemperatureRouteSequenceView,
@@ -53,4 +54,5 @@ urlpatterns = [
     path("alerts/<uuid:alert_id>/status", AlertStatusUpdateView.as_view(), name="alerts-status-update"),
     path("reports/lots.csv", LotReportCsvView.as_view(), name="report-lots-csv"),
     path("reports/lots.pdf", LotReportPdfView.as_view(), name="report-lots-pdf"),
+    path("reports/temperatures.csv", TemperatureRegisterCsvView.as_view(), name="report-temperatures-csv"),
 ]

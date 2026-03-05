@@ -210,11 +210,15 @@ class TemperatureDeviceType(models.TextChoices):
 class TemperatureReading(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="temperature_readings")
+    register = models.ForeignKey(
+        "TemperatureRegister", null=True, blank=True, on_delete=models.SET_NULL, related_name="temperature_readings"
+    )
     cold_point = models.ForeignKey(
         "ColdPoint", null=True, blank=True, on_delete=models.SET_NULL, related_name="temperature_readings"
     )
     device_type = models.CharField(max_length=24, choices=TemperatureDeviceType.choices, default=TemperatureDeviceType.OTHER)
     device_label = models.CharField(max_length=120, blank=True, default="")
+    reference_temperature_celsius = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     temperature_celsius = models.DecimalField(max_digits=6, decimal_places=2)
     unit = models.CharField(max_length=4, default="C")
     observed_at = models.DateTimeField(default=timezone.now)
@@ -242,6 +246,19 @@ class ColdSector(models.Model):
 
     class Meta:
         ordering = ["sort_order", "name"]
+        unique_together = ("site", "name")
+
+
+class TemperatureRegister(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="temperature_registers")
+    sector = models.OneToOneField(ColdSector, on_delete=models.CASCADE, related_name="temperature_register")
+    name = models.CharField(max_length=120)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
         unique_together = ("site", "name")
 
 

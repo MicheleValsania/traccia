@@ -73,6 +73,7 @@ Note operative:
 - `POST /api/alerts/{alert_id}/status`
 - `GET /api/reports/lots.csv?site_code=PARIS01&from_date=2026-02-01&to_date=2026-02-21`
 - `GET /api/reports/lots.pdf?site_code=PARIS01&from_date=2026-02-01&to_date=2026-02-21`
+- `GET /api/reports/temperatures.csv?site_code=PARIS01` (registro temperature per settore/punto freddo)
 
 ### Deploy Railway
 
