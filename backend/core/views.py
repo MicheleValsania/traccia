@@ -53,6 +53,7 @@ from .serializers import (
     ColdPointWriteSerializer,
     ColdPointUpdateSerializer,
     TemperatureCaptureSerializer,
+    TemperatureConfirmSerializer,
     TemperatureListFilterSerializer,
     TemperatureReadingSerializer,
     TemperatureRouteSerializer,
@@ -137,6 +138,26 @@ SITE_WRITE_ROLES = {
     MembershipRole.CHEF,
     MembershipRole.OPERATOR,
 }
+
+TEMP_DEFAULT_RANGES = {
+    TemperatureDeviceType.FRIDGE: (0.0, 8.0),
+    TemperatureDeviceType.FREEZER: (-30.0, -15.0),
+    TemperatureDeviceType.COLD_ROOM: (0.0, 6.0),
+}
+
+
+def _temperature_warnings(*, value_celsius: float, device_type: str, cold_point: ColdPoint | None) -> list[str]:
+    warnings: list[str] = []
+    if device_type in TEMP_DEFAULT_RANGES:
+        min_t, max_t = TEMP_DEFAULT_RANGES[device_type]
+        if value_celsius < min_t or value_celsius > max_t:
+            warnings.append(f"Temperature out of default range for {device_type}: {min_t}..{max_t} C")
+    if cold_point:
+        if cold_point.min_temp_celsius is not None and value_celsius < float(cold_point.min_temp_celsius):
+            warnings.append(f"Below configured min for point: {cold_point.min_temp_celsius} C")
+        if cold_point.max_temp_celsius is not None and value_celsius > float(cold_point.max_temp_celsius):
+            warnings.append(f"Above configured max for point: {cold_point.max_temp_celsius} C")
+    return warnings
 
 
 class FicheImportView(APIView):
@@ -570,7 +591,6 @@ class TemperatureRouteSequenceView(APIView):
 class TemperatureCaptureView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @transaction.atomic
     def post(self, request):
         serializer = TemperatureCaptureSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -580,9 +600,7 @@ class TemperatureCaptureView(APIView):
         except Site.DoesNotExist:
             return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
 
-        auth_error = _ensure_site_role(
-            request, site, {MembershipRole.ADMIN, MembershipRole.MANAGER, MembershipRole.CHEF, MembershipRole.OPERATOR}
-        )
+        auth_error = _ensure_site_role(request, site, SITE_WRITE_ROLES)
         if auth_error:
             return auth_error
 
@@ -602,40 +620,119 @@ class TemperatureCaptureView(APIView):
             if not cold_point:
                 return Response({"detail": "Unknown cold_point_id for site."}, status=status.HTTP_400_BAD_REQUEST)
 
-        ocr_device_type = str(ocr.get("device_type", "") or "").upper()
+        ocr_device_type = str(ocr.get("device_type", "") or "").upper() or TemperatureDeviceType.OTHER
         explicit_device_type = data.get("device_type")
         device_type = explicit_device_type or (cold_point.device_type if cold_point else "") or ocr_device_type or TemperatureDeviceType.OTHER
         if device_type not in TemperatureDeviceType.values:
             device_type = TemperatureDeviceType.OTHER
         device_label = (data.get("device_label") or (cold_point.name if cold_point else "") or ocr.get("device_label") or "").strip()[:120]
+        temperature_celsius = float(ocr["temperature_celsius"])
+        warnings = _temperature_warnings(
+            value_celsius=temperature_celsius,
+            device_type=device_type,
+            cold_point=cold_point,
+        )
+
+        log_audit_event(
+            action="TEMPERATURE_OCR_PREVIEW_GENERATED",
+            request=request,
+            site=site,
+            object_type="ColdPoint",
+            object_id=str(cold_point.id) if cold_point else "",
+            payload={
+                "device_type": device_type,
+                "device_label": device_label,
+                "cold_point_id": str(cold_point.id) if cold_point else "",
+                "ocr_suggested_temperature_celsius": temperature_celsius,
+                "ocr_provider": str(ocr.get("provider", "") or ""),
+                "ocr_confidence": ocr.get("confidence"),
+                "warnings": warnings,
+                "photo_persisted": False,
+            },
+        )
+        return Response(
+            {
+                "requires_confirmation": True,
+                "preview": {
+                    "site_code": site.code,
+                    "cold_point_id": str(cold_point.id) if cold_point else "",
+                    "device_type": device_type,
+                    "device_label": device_label,
+                    "suggested_temperature_celsius": temperature_celsius,
+                    "ocr_provider": str(ocr.get("provider", "") or ""),
+                    "ocr_confidence": ocr.get("confidence"),
+                    "warnings": warnings,
+                    "observed_at": (data.get("observed_at") or timezone.now()).isoformat(),
+                },
+                "privacy": {"photo_persisted": False},
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class TemperatureConfirmView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        serializer = TemperatureConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        site = Site.objects.filter(code=data["site_code"]).first()
+        if not site:
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_site_role(request, site, SITE_WRITE_ROLES)
+        if auth_error:
+            return auth_error
+
+        cold_point = None
+        if data.get("cold_point_id"):
+            cold_point = ColdPoint.objects.select_related("sector").filter(id=data["cold_point_id"], site=site).first()
+            if not cold_point:
+                return Response({"detail": "Unknown cold_point_id for site."}, status=status.HTTP_400_BAD_REQUEST)
+
+        device_type = data.get("device_type") or (cold_point.device_type if cold_point else TemperatureDeviceType.OTHER)
+        if device_type not in TemperatureDeviceType.values:
+            device_type = TemperatureDeviceType.OTHER
+        device_label = (data.get("device_label") or (cold_point.name if cold_point else "")).strip()[:120]
+        confirmed_temp = Decimal(str(data["confirmed_temperature_celsius"]))
+        warnings = _temperature_warnings(
+            value_celsius=float(confirmed_temp),
+            device_type=device_type,
+            cold_point=cold_point,
+        )
 
         reading = TemperatureReading.objects.create(
             site=site,
             cold_point=cold_point,
             device_type=device_type,
             device_label=device_label,
-            temperature_celsius=Decimal(str(ocr["temperature_celsius"])),
+            temperature_celsius=confirmed_temp,
             unit="C",
             observed_at=data.get("observed_at") or timezone.now(),
-            source="OCR_PHOTO",
-            ocr_provider=str(ocr.get("provider", "") or ""),
-            confidence=ocr.get("confidence"),
-            ocr_payload=ocr,
+            source="OCR_PHOTO_CONFIRMED",
+            ocr_provider=str(data.get("ocr_provider", "") or ""),
+            confidence=data.get("ocr_confidence"),
+            ocr_payload={
+                "ocr_suggested_temperature_celsius": str(data.get("ocr_suggested_temperature_celsius", "")),
+                "operator_confirmed_temperature_celsius": str(confirmed_temp),
+                "warnings": data.get("ocr_warnings", []),
+                "post_confirm_warnings": warnings,
+            },
             created_by=request.user if request.user.is_authenticated else None,
         )
 
         log_audit_event(
-            action="TEMPERATURE_READING_CAPTURED_OCR",
+            action="TEMPERATURE_READING_CONFIRMED",
             request=request,
             site=site,
             object_type="TemperatureReading",
             object_id=str(reading.id),
             payload={
-                "device_type": reading.device_type,
-                "device_label": reading.device_label,
                 "cold_point_id": str(reading.cold_point_id) if reading.cold_point_id else "",
                 "temperature_celsius": str(reading.temperature_celsius),
-                "ocr_provider": reading.ocr_provider,
+                "device_type": reading.device_type,
+                "warnings": warnings,
                 "photo_persisted": False,
             },
         )

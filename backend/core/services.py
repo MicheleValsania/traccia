@@ -436,15 +436,34 @@ def run_temperature_ocr_stub(file_name: str) -> dict[str, Any]:
 
 
 def run_temperature_ocr(file_name: str, binary: bytes, mime_type: str = "image/jpeg") -> dict[str, Any]:
+    allow_stub = os.getenv("TEMPERATURE_OCR_ALLOW_STUB", "0") == "1"
     if os.getenv("CLAUDE_ENABLED", "0") != "1" or Anthropic is None:
-        return run_temperature_ocr_stub(file_name=file_name)
+        if allow_stub:
+            return run_temperature_ocr_stub(file_name=file_name)
+        return {
+            "device_type": "OTHER",
+            "device_label": "",
+            "temperature_celsius": None,
+            "confidence": 0.0,
+            "provider": "unavailable",
+            "fallback_reason": "claude_disabled_or_missing_sdk",
+        }
 
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
     if not api_key:
-        result = run_temperature_ocr_stub(file_name=file_name)
-        result["fallback_reason"] = "missing_api_key"
-        return result
+        if allow_stub:
+            result = run_temperature_ocr_stub(file_name=file_name)
+            result["fallback_reason"] = "missing_api_key"
+            return result
+        return {
+            "device_type": "OTHER",
+            "device_label": "",
+            "temperature_celsius": None,
+            "confidence": 0.0,
+            "provider": "unavailable",
+            "fallback_reason": "missing_api_key",
+        }
 
     attempts = int(os.getenv("CLAUDE_RETRY_ATTEMPTS", "3"))
     backoff = float(os.getenv("CLAUDE_RETRY_BASE_SLEEP_S", "0.8"))
@@ -503,15 +522,24 @@ def run_temperature_ocr(file_name: str, binary: bytes, mime_type: str = "image/j
         }
     except Exception as exc:
         logger.exception(
-            "Temperature OCR fallback to stub. file_name=%s mime_type=%s model=%s error=%s",
+            "Temperature OCR failed. file_name=%s mime_type=%s model=%s error=%s",
             file_name,
             mime_type,
             model,
             exc,
         )
-        result = run_temperature_ocr_stub(file_name=file_name)
-        result["fallback_reason"] = str(exc)[:400]
-        return result
+        if allow_stub:
+            result = run_temperature_ocr_stub(file_name=file_name)
+            result["fallback_reason"] = str(exc)[:400]
+            return result
+        return {
+            "device_type": "OTHER",
+            "device_label": "",
+            "temperature_celsius": None,
+            "confidence": 0.0,
+            "provider": "claude_error",
+            "fallback_reason": str(exc)[:400],
+        }
 
 
 def parse_date_or_none(value: str) -> date | None:

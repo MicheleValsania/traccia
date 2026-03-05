@@ -71,6 +71,22 @@ export type TemperatureCaptureResponse = {
   privacy: { photo_persisted: boolean };
 };
 
+export type TemperaturePreviewResponse = {
+  requires_confirmation: boolean;
+  preview: {
+    site_code: string;
+    cold_point_id: string;
+    device_type: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER";
+    device_label: string;
+    suggested_temperature_celsius: number;
+    ocr_provider: string;
+    ocr_confidence: number | null;
+    warnings: string[];
+    observed_at: string;
+  };
+  privacy: { photo_persisted: boolean };
+};
+
 export type ColdSector = {
   id: string;
   site_code: string;

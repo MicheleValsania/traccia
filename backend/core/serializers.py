@@ -43,6 +43,19 @@ class TemperatureCaptureSerializer(serializers.Serializer):
     observed_at = serializers.DateTimeField(required=False)
 
 
+class TemperatureConfirmSerializer(serializers.Serializer):
+    site_code = serializers.CharField()
+    cold_point_id = serializers.UUIDField(required=False)
+    device_label = serializers.CharField(required=False, allow_blank=True, default="")
+    device_type = serializers.ChoiceField(choices=TemperatureDeviceType.choices, required=False)
+    confirmed_temperature_celsius = serializers.DecimalField(max_digits=6, decimal_places=2)
+    observed_at = serializers.DateTimeField(required=False)
+    ocr_provider = serializers.CharField(required=False, allow_blank=True, default="")
+    ocr_confidence = serializers.FloatField(required=False)
+    ocr_suggested_temperature_celsius = serializers.DecimalField(max_digits=6, decimal_places=2, required=False)
+    ocr_warnings = serializers.ListField(child=serializers.CharField(), required=False)
+
+
 class TemperatureReadingSerializer(serializers.ModelSerializer):
     site_code = serializers.CharField(source="site.code", read_only=True)
     cold_point_id = serializers.UUIDField(source="cold_point.id", read_only=True)

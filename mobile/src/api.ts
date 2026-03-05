@@ -6,6 +6,7 @@ import {
   DraftLot,
   MeResponse,
   TemperatureCaptureResponse,
+  TemperaturePreviewResponse,
   TemperatureReading,
   TemperatureRoute,
   TransformResponse,
@@ -170,7 +171,7 @@ export async function fetchAlerts(token: string, siteCode: string): Promise<Aler
   return (await response.json()) as AlertItem[];
 }
 
-export async function captureTemperaturePhoto(params: {
+export async function captureTemperaturePreview(params: {
   token: string;
   siteCode: string;
   fileName: string;
@@ -179,7 +180,7 @@ export async function captureTemperaturePhoto(params: {
   deviceLabel?: string;
   deviceType?: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER";
   coldPointId?: string;
-}): Promise<TemperatureCaptureResponse> {
+}): Promise<TemperaturePreviewResponse> {
   const payload = {
     site_code: params.siteCode,
     file_name: params.fileName,
@@ -190,12 +191,48 @@ export async function captureTemperaturePhoto(params: {
     cold_point_id: params.coldPointId || undefined,
   };
   const response = await fetch(
-    `${API_BASE}/temperatures/capture`,
+    `${API_BASE}/temperatures/capture-preview`,
     withAuth(params.token, { method: "POST", body: JSON.stringify(payload) }),
   );
   if (!response.ok) {
     const details = await response.text();
-    throw new Error(details || "Rilevazione temperatura fallita.");
+    throw new Error(details || "Anteprima OCR temperatura fallita.");
+  }
+  return (await response.json()) as TemperaturePreviewResponse;
+}
+
+export async function confirmTemperatureReading(params: {
+  token: string;
+  siteCode: string;
+  coldPointId?: string;
+  deviceLabel?: string;
+  deviceType?: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER";
+  confirmedTemperatureCelsius: string;
+  observedAt?: string;
+  ocrProvider?: string;
+  ocrConfidence?: number | null;
+  ocrSuggestedTemperatureCelsius?: number;
+  ocrWarnings?: string[];
+}): Promise<TemperatureCaptureResponse> {
+  const payload = {
+    site_code: params.siteCode,
+    cold_point_id: params.coldPointId || undefined,
+    device_label: params.deviceLabel || "",
+    device_type: params.deviceType || undefined,
+    confirmed_temperature_celsius: params.confirmedTemperatureCelsius,
+    observed_at: params.observedAt || undefined,
+    ocr_provider: params.ocrProvider || "",
+    ocr_confidence: params.ocrConfidence ?? undefined,
+    ocr_suggested_temperature_celsius: params.ocrSuggestedTemperatureCelsius ?? undefined,
+    ocr_warnings: params.ocrWarnings || [],
+  };
+  const response = await fetch(
+    `${API_BASE}/temperatures/confirm`,
+    withAuth(params.token, { method: "POST", body: JSON.stringify(payload) }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Conferma operatore fallita.");
   }
   return (await response.json()) as TemperatureCaptureResponse;
 }

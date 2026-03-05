@@ -4,7 +4,8 @@ import React from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 
 import {
-  captureTemperaturePhoto,
+  captureTemperaturePreview,
+  confirmTemperatureReading,
   createColdPoint,
   createColdSector,
   deleteColdPoint,
@@ -15,7 +16,7 @@ import {
   updateColdSector,
 } from "../api";
 import { appStyles } from "../styles";
-import { ColdPoint, ColdSector, TemperatureCaptureResponse, TemperatureReading } from "../types";
+import { ColdPoint, ColdSector, TemperatureCaptureResponse, TemperaturePreviewResponse, TemperatureReading } from "../types";
 
 type Props = {
   token: string;
@@ -43,6 +44,9 @@ export function TemperatureScreen(props: Props) {
 
   const [readings, setReadings] = React.useState<TemperatureReading[]>([]);
   const [lastCapture, setLastCapture] = React.useState<TemperatureCaptureResponse | null>(null);
+  const [pendingPreview, setPendingPreview] = React.useState<TemperaturePreviewResponse | null>(null);
+  const [confirmTempInput, setConfirmTempInput] = React.useState("");
+  const [pendingPoint, setPendingPoint] = React.useState<ColdPoint | null>(null);
   const [infoMessage, setInfoMessage] = React.useState("");
 
   const [sequenceCameraOpen, setSequenceCameraOpen] = React.useState(false);
@@ -223,7 +227,7 @@ export function TemperatureScreen(props: Props) {
       props.setError("Immagine non valida: base64 assente.");
       return;
     }
-    const response = await captureTemperaturePhoto({
+    const preview = await captureTemperaturePreview({
       token: props.token,
       siteCode: props.siteCode,
       fileName: asset.fileName || `temperature_${Date.now()}.jpg`,
@@ -233,8 +237,50 @@ export function TemperatureScreen(props: Props) {
       deviceLabel: point.name,
       deviceType: point.device_type,
     });
-    setLastCapture(response);
-    await refreshReadings();
+    setPendingPreview(preview);
+    setPendingPoint(point);
+    setConfirmTempInput(String(preview.preview.suggested_temperature_celsius));
+  }
+
+  async function confirmPreview() {
+    if (!pendingPreview || !pendingPoint) {
+      props.setError("Nessuna anteprima OCR da confermare.");
+      return;
+    }
+    const normalized = confirmTempInput.trim().replace(",", ".");
+    if (!normalized) {
+      props.setError("Inserisci la temperatura confermata.");
+      return;
+    }
+    try {
+      const saved = await confirmTemperatureReading({
+        token: props.token,
+        siteCode: props.siteCode,
+        coldPointId: pendingPoint.id,
+        deviceLabel: pendingPreview.preview.device_label,
+        deviceType: pendingPreview.preview.device_type,
+        confirmedTemperatureCelsius: normalized,
+        observedAt: pendingPreview.preview.observed_at,
+        ocrProvider: pendingPreview.preview.ocr_provider,
+        ocrConfidence: pendingPreview.preview.ocr_confidence ?? undefined,
+        ocrSuggestedTemperatureCelsius: pendingPreview.preview.suggested_temperature_celsius,
+        ocrWarnings: pendingPreview.preview.warnings,
+      });
+      setLastCapture(saved);
+      setPendingPreview(null);
+      setPendingPoint(null);
+      setConfirmTempInput("");
+      await refreshReadings();
+      if (mode === "sequence" && sequenceCameraOpen) {
+        if (sequenceStepIndex >= sequencePoints.length - 1) {
+          setInfoMessage("Sequenza completata.");
+        } else {
+          setSequenceStepIndex((prev) => prev + 1);
+        }
+      }
+    } catch (e) {
+      props.setError(e instanceof Error ? e.message : "Errore conferma operatore.");
+    }
   }
 
   async function captureSingle() {
@@ -288,11 +334,7 @@ export function TemperatureScreen(props: Props) {
         { base64: photo.base64, fileName: `temperature_${Date.now()}.jpg`, mimeType: "image/jpeg" },
         currentSequencePoint,
       );
-      if (sequenceStepIndex >= sequencePoints.length - 1) {
-        setInfoMessage("Sequenza completata.");
-      } else {
-        setSequenceStepIndex((prev) => prev + 1);
-      }
+      setInfoMessage("Anteprima OCR pronta: conferma operatore richiesta.");
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore scatto sequenza.");
     } finally {
@@ -444,7 +486,7 @@ export function TemperatureScreen(props: Props) {
             </View>
 
             {mode === "single" ? (
-              <Pressable style={appStyles.button} onPress={captureSingle} disabled={loading || !selectedPoint}>
+              <Pressable style={appStyles.button} onPress={captureSingle} disabled={loading || !selectedPoint || !!pendingPreview}>
                 <Text style={appStyles.buttonText}>{loading ? "Elaborazione..." : "Scatta singolo"}</Text>
               </Pressable>
             ) : (
@@ -454,7 +496,7 @@ export function TemperatureScreen(props: Props) {
                     ? `Prossimo: ${currentSequencePoint.sort_order}. ${currentSequencePoint.name}`
                     : "Sequenza completata o non configurata"}
                 </Text>
-                <Pressable style={appStyles.button} onPress={openSequenceCamera} disabled={loading || !sequencePoints.length}>
+                <Pressable style={appStyles.button} onPress={openSequenceCamera} disabled={loading || !sequencePoints.length || !!pendingPreview}>
                   <Text style={appStyles.buttonText}>Apri camera sequenza</Text>
                 </Pressable>
               </>
@@ -470,11 +512,52 @@ export function TemperatureScreen(props: Props) {
                 {currentSequencePoint?.name || "Completata"}
               </Text>
               <View style={appStyles.tabsRow}>
-                <Pressable style={appStyles.button} onPress={takeSequenceShot} disabled={takingShot || !currentSequencePoint}>
+                <Pressable style={appStyles.button} onPress={takeSequenceShot} disabled={takingShot || !currentSequencePoint || !!pendingPreview}>
                   <Text style={appStyles.buttonText}>{takingShot ? "Scatto..." : "Scatta"}</Text>
                 </Pressable>
                 <Pressable style={appStyles.buttonSecondary} onPress={() => setSequenceCameraOpen(false)}>
                   <Text style={appStyles.buttonSecondaryText}>Fine sessione</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
+          {pendingPreview ? (
+            <View style={appStyles.card}>
+              <Text style={appStyles.sectionTitle}>Conferma operatore</Text>
+              <Text>Punto freddo: {pendingPreview.preview.device_label || "-"}</Text>
+              <Text>OCR suggerito: {pendingPreview.preview.suggested_temperature_celsius} C</Text>
+              <Text style={appStyles.label}>Temperatura confermata (modificabile)</Text>
+              <TextInput
+                style={appStyles.input}
+                value={confirmTempInput}
+                onChangeText={setConfirmTempInput}
+                keyboardType="decimal-pad"
+                placeholder="es: 4.5"
+              />
+              {pendingPreview.preview.warnings.length ? (
+                <View>
+                  <Text style={appStyles.warn}>Warnings OCR</Text>
+                  {pendingPreview.preview.warnings.map((warn, idx) => (
+                    <Text key={`${warn}-${idx}`} style={appStyles.warn}>
+                      - {warn}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+              <View style={appStyles.tabsRow}>
+                <Pressable style={appStyles.button} onPress={confirmPreview}>
+                  <Text style={appStyles.buttonText}>Conferma e salva</Text>
+                </Pressable>
+                <Pressable
+                  style={appStyles.buttonSecondary}
+                  onPress={() => {
+                    setPendingPreview(null);
+                    setPendingPoint(null);
+                    setConfirmTempInput("");
+                  }}
+                >
+                  <Text style={appStyles.buttonSecondaryText}>Annulla</Text>
                 </Pressable>
               </View>
             </View>
