@@ -7,6 +7,7 @@ import {
   captureTemperaturePhoto,
   createColdPoint,
   createColdSector,
+  deleteColdPoint,
   fetchColdPoints,
   fetchColdSectors,
   fetchTemperatureReadings,
@@ -24,25 +25,25 @@ type Props = {
 };
 
 export function TemperatureScreen(props: Props) {
-  const [loading, setLoading] = React.useState(false);
-  const [infoMessage, setInfoMessage] = React.useState("");
   const [programming, setProgramming] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
   const [mode, setMode] = React.useState<"single" | "sequence">("single");
+
   const [sectors, setSectors] = React.useState<ColdSector[]>([]);
   const [points, setPoints] = React.useState<ColdPoint[]>([]);
   const [selectedSectorId, setSelectedSectorId] = React.useState("");
   const [selectedPointId, setSelectedPointId] = React.useState("");
+
+  const [editingSectorId, setEditingSectorId] = React.useState("");
+  const [sectorInput, setSectorInput] = React.useState("");
+  const [editingPointId, setEditingPointId] = React.useState("");
+  const [pointNameInput, setPointNameInput] = React.useState("");
+  const [pointOrderInput, setPointOrderInput] = React.useState("1");
+  const [pointTypeInput, setPointTypeInput] = React.useState<"FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER">("FRIDGE");
+
   const [readings, setReadings] = React.useState<TemperatureReading[]>([]);
   const [lastCapture, setLastCapture] = React.useState<TemperatureCaptureResponse | null>(null);
-
-  const [newSectorName, setNewSectorName] = React.useState("");
-  const [editSectorName, setEditSectorName] = React.useState("");
-  const [newPointName, setNewPointName] = React.useState("");
-  const [newPointType, setNewPointType] = React.useState<"FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER">("FRIDGE");
-  const [newPointOrder, setNewPointOrder] = React.useState("1");
-  const [editPointName, setEditPointName] = React.useState("");
-  const [editPointType, setEditPointType] = React.useState<"FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER">("FRIDGE");
-  const [editPointOrder, setEditPointOrder] = React.useState("1");
+  const [infoMessage, setInfoMessage] = React.useState("");
 
   const [sequenceCameraOpen, setSequenceCameraOpen] = React.useState(false);
   const [sequenceStepIndex, setSequenceStepIndex] = React.useState(0);
@@ -61,49 +62,32 @@ export function TemperatureScreen(props: Props) {
   }, [props.token, props.siteCode]);
 
   React.useEffect(() => {
-    if (!selectedSector) {
-      setEditSectorName("");
-      return;
-    }
-    setEditSectorName(selectedSector.name);
-  }, [selectedSectorId, sectors]);
-
-  React.useEffect(() => {
-    if (!selectedPoint) {
-      setEditPointName("");
-      return;
-    }
-    setEditPointName(selectedPoint.name);
-    setEditPointType(selectedPoint.device_type);
-    setEditPointOrder(String(selectedPoint.sort_order));
-  }, [selectedPointId, points]);
-
-  React.useEffect(() => {
     if (!props.token) return;
+    if (!selectedSectorId) return;
     void refreshReadings();
-  }, [selectedSectorId, selectedPointId, mode]);
+  }, [props.token, selectedSectorId, selectedPointId, mode]);
 
   async function loadConfiguration() {
     if (!props.token) {
       props.setError("Effettua login prima di usare Temperature.");
       return;
     }
+    setLoading(true);
     try {
-      setLoading(true);
       const sectorRows = await fetchColdSectors(props.token, props.siteCode);
       setSectors(sectorRows);
-      const nextSectorId = selectedSectorId && sectorRows.some((s) => s.id === selectedSectorId)
-        ? selectedSectorId
-        : (sectorRows[0]?.id ?? "");
+      const nextSectorId =
+        selectedSectorId && sectorRows.some((s) => s.id === selectedSectorId) ? selectedSectorId : (sectorRows[0]?.id ?? "");
       setSelectedSectorId(nextSectorId);
+
       if (!nextSectorId) {
         setPoints([]);
         setSelectedPointId("");
-        setInfoMessage(`Configurazione caricata: 0 settori per site ${props.siteCode}.`);
+        setInfoMessage(`Nessun settore su site ${props.siteCode}.`);
         return;
       }
       await loadPoints(nextSectorId);
-      setInfoMessage(`Configurazione caricata: ${sectorRows.length} settori su site ${props.siteCode}.`);
+      setInfoMessage(`Configurazione caricata (${sectorRows.length} settori).`);
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore caricamento configurazione.");
       setInfoMessage("Errore caricamento configurazione.");
@@ -113,27 +97,119 @@ export function TemperatureScreen(props: Props) {
   }
 
   async function loadPoints(sectorId: string) {
-    if (!props.token) {
-      props.setError("Effettua login prima di usare Temperature.");
-      return;
-    }
     const pointRows = await fetchColdPoints(props.token, props.siteCode, sectorId);
     const sorted = pointRows.slice().sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
     setPoints(sorted);
     const nextPointId = selectedPointId && sorted.some((p) => p.id === selectedPointId) ? selectedPointId : (sorted[0]?.id ?? "");
     setSelectedPointId(nextPointId);
     setSequenceStepIndex(0);
-    setInfoMessage(`Settore caricato: ${sorted.length} punti freddo.`);
   }
 
-  async function refreshReadings() {
-    if (!props.token) {
-      props.setError("Effettua login prima di caricare lo storico.");
+  function startCreateSector() {
+    setEditingSectorId("");
+    setSectorInput("");
+  }
+
+  function startEditSector(sector: ColdSector) {
+    setEditingSectorId(sector.id);
+    setSectorInput(sector.name);
+  }
+
+  async function submitSector() {
+    const name = sectorInput.trim();
+    if (!name) {
+      props.setError("Inserisci un nome settore.");
       return;
     }
     try {
+      if (editingSectorId) {
+        await updateColdSector({ token: props.token, sectorId: editingSectorId, name });
+        setInfoMessage("Settore aggiornato.");
+      } else {
+        await createColdSector({ token: props.token, siteCode: props.siteCode, name, sortOrder: sectors.length + 1 });
+        setInfoMessage("Settore aggiunto.");
+      }
+      startCreateSector();
+      await loadConfiguration();
+    } catch (e) {
+      props.setError(e instanceof Error ? e.message : "Errore salvataggio settore.");
+    }
+  }
+
+  function startCreatePoint() {
+    setEditingPointId("");
+    setPointNameInput("");
+    setPointOrderInput(String((points[points.length - 1]?.sort_order || 0) + 1));
+    setPointTypeInput("FRIDGE");
+  }
+
+  function startEditPoint(point: ColdPoint) {
+    setEditingPointId(point.id);
+    setPointNameInput(point.name);
+    setPointOrderInput(String(point.sort_order));
+    setPointTypeInput(point.device_type);
+  }
+
+  async function submitPoint() {
+    if (!selectedSector) {
+      props.setError("Seleziona prima un settore.");
+      return;
+    }
+    const name = pointNameInput.trim();
+    if (!name) {
+      props.setError("Inserisci il nome del punto freddo.");
+      return;
+    }
+    const sortOrder = Number(pointOrderInput) || 1;
+    try {
+      if (editingPointId) {
+        await updateColdPoint({
+          token: props.token,
+          pointId: editingPointId,
+          sectorId: selectedSector.id,
+          name,
+          sortOrder,
+          deviceType: pointTypeInput,
+        });
+        setInfoMessage("Punto freddo aggiornato.");
+      } else {
+        await createColdPoint({
+          token: props.token,
+          siteCode: props.siteCode,
+          sectorId: selectedSector.id,
+          name,
+          sortOrder,
+          deviceType: pointTypeInput,
+        });
+        setInfoMessage("Punto freddo aggiunto.");
+      }
+      startCreatePoint();
+      await loadPoints(selectedSector.id);
+    } catch (e) {
+      props.setError(e instanceof Error ? e.message : "Errore salvataggio punto freddo.");
+    }
+  }
+
+  async function removePoint(point: ColdPoint) {
+    try {
+      await deleteColdPoint(props.token, point.id);
+      if (editingPointId === point.id) {
+        startCreatePoint();
+      }
+      setInfoMessage("Punto freddo eliminato.");
+      if (selectedSector) {
+        await loadPoints(selectedSector.id);
+      }
+    } catch (e) {
+      props.setError(e instanceof Error ? e.message : "Errore eliminazione punto freddo.");
+    }
+  }
+
+  async function refreshReadings() {
+    if (!selectedSectorId) return;
+    try {
       const rows = await fetchTemperatureReadings(props.token, props.siteCode, 20, {
-        sectorId: selectedSectorId || undefined,
+        sectorId: selectedSectorId,
         coldPointId: mode === "single" ? selectedPointId || undefined : undefined,
       });
       setReadings(rows);
@@ -162,15 +238,10 @@ export function TemperatureScreen(props: Props) {
   }
 
   async function captureSingle() {
-    if (!props.token) {
-      props.setError("Effettua login prima dello scatto.");
-      return;
-    }
     if (!selectedPoint) {
       props.setError("Seleziona un punto freddo.");
       return;
     }
-    props.setError("");
     setLoading(true);
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -178,11 +249,7 @@ export function TemperatureScreen(props: Props) {
         props.setError("Permesso camera negato.");
         return;
       }
-      const shot = await ImagePicker.launchCameraAsync({
-        quality: 0.7,
-        base64: true,
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      });
+      const shot = await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true, mediaTypes: ImagePicker.MediaTypeOptions.Images });
       if (shot.canceled || !shot.assets[0]) return;
       await submitCapture(shot.assets[0], selectedPoint);
     } catch (e) {
@@ -193,13 +260,8 @@ export function TemperatureScreen(props: Props) {
   }
 
   async function openSequenceCamera() {
-    if (!props.token) {
-      props.setError("Effettua login prima della sequenza.");
-      return;
-    }
-    props.setError("");
     if (!sequencePoints.length) {
-      props.setError("Configura almeno un punto freddo nel settore selezionato.");
+      props.setError("Configura almeno un punto freddo nel settore.");
       return;
     }
     if (!cameraPermission?.granted) {
@@ -217,10 +279,7 @@ export function TemperatureScreen(props: Props) {
     if (!cameraRef.current || !currentSequencePoint || takingShot) return;
     setTakingShot(true);
     try {
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.6,
-        base64: true,
-      });
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.6, base64: true });
       if (!photo?.base64) {
         props.setError("Impossibile leggere la foto.");
         return;
@@ -230,7 +289,7 @@ export function TemperatureScreen(props: Props) {
         currentSequencePoint,
       );
       if (sequenceStepIndex >= sequencePoints.length - 1) {
-        props.setError("Sequenza completata.");
+        setInfoMessage("Sequenza completata.");
       } else {
         setSequenceStepIndex((prev) => prev + 1);
       }
@@ -241,124 +300,30 @@ export function TemperatureScreen(props: Props) {
     }
   }
 
-  async function addSector() {
-    const name = newSectorName.trim();
-    if (!name) return;
-    try {
-      await createColdSector({ token: props.token, siteCode: props.siteCode, name, sortOrder: sectors.length + 1 });
-      setNewSectorName("");
-      await loadConfiguration();
-      setInfoMessage("Settore aggiunto.");
-    } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore creazione settore.");
-      setInfoMessage("Errore creazione settore.");
-    }
-  }
-
-  async function saveSectorEdit() {
-    if (!selectedSector) {
-      props.setError("Seleziona un settore da modificare.");
-      return;
-    }
-    try {
-      await updateColdSector({ token: props.token, sectorId: selectedSector.id, name: editSectorName.trim() });
-      await loadConfiguration();
-      setInfoMessage("Settore aggiornato.");
-    } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore modifica settore.");
-      setInfoMessage("Errore modifica settore.");
-    }
-  }
-
-  async function addPoint() {
-    if (!selectedSector) {
-      props.setError("Seleziona un settore prima di aggiungere un punto freddo.");
-      return;
-    }
-    const name = newPointName.trim();
-    if (!name) return;
-    try {
-      await createColdPoint({
-        token: props.token,
-        siteCode: props.siteCode,
-        sectorId: selectedSector.id,
-        name,
-        deviceType: newPointType,
-        sortOrder: Number(newPointOrder) || points.length + 1,
-      });
-      setNewPointName("");
-      await loadPoints(selectedSector.id);
-      setInfoMessage("Punto freddo aggiunto.");
-    } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore creazione punto freddo.");
-      setInfoMessage("Errore creazione punto freddo.");
-    }
-  }
-
-  async function savePointEdit() {
-    if (!selectedPoint || !selectedSector) {
-      props.setError("Seleziona un punto freddo da modificare.");
-      return;
-    }
-    try {
-      await updateColdPoint({
-        token: props.token,
-        pointId: selectedPoint.id,
-        sectorId: selectedSector.id,
-        name: editPointName.trim(),
-        deviceType: editPointType,
-        sortOrder: Number(editPointOrder) || selectedPoint.sort_order,
-      });
-      await loadPoints(selectedSector.id);
-      setInfoMessage("Punto freddo aggiornato.");
-    } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore modifica punto freddo.");
-      setInfoMessage("Errore modifica punto freddo.");
-    }
-  }
-
   return (
     <>
       <View style={appStyles.card}>
         <Text style={appStyles.sectionTitle}>Temperature</Text>
-        <Text style={appStyles.tokenPreview}>Le foto sono elaborate OCR senza persistenza immagine.</Text>
-        <Text style={appStyles.tokenPreview}>Site attuale: {props.siteCode || "-"}</Text>
+        <Text style={appStyles.tokenPreview}>Site: {props.siteCode}</Text>
         {infoMessage ? <Text style={appStyles.tokenPreview}>{infoMessage}</Text> : null}
 
-        <Text style={appStyles.label}>Site code</Text>
-        <TextInput
-          style={appStyles.input}
-          value={props.siteCode}
-          onChangeText={props.setSiteCode}
-          autoCapitalize="characters"
-          placeholder="MAIN"
-        />
         <View style={appStyles.tabsRow}>
-          <Pressable style={appStyles.buttonSecondary} onPress={loadConfiguration} disabled={loading}>
-            <Text style={appStyles.buttonSecondaryText}>Aggiorna</Text>
-          </Pressable>
-          <Pressable
-            style={appStyles.button}
-            onPress={() => {
-              if (!props.token) {
-                props.setError("Effettua login prima di entrare in Programmazione.");
-                return;
-              }
-              setProgramming((prev) => !prev);
-            }}
-            disabled={loading}
-          >
-            <Text style={appStyles.buttonText}>{programming ? "Torna a Temperature" : "Programmazione"}</Text>
-          </Pressable>
+          {!programming ? (
+            <Pressable style={appStyles.button} onPress={() => setProgramming(true)}>
+              <Text style={appStyles.buttonText}>Programmazione</Text>
+            </Pressable>
+          ) : (
+            <Pressable style={appStyles.buttonSecondary} onPress={() => setProgramming(false)}>
+              <Text style={appStyles.buttonSecondaryText}>Torna a Temperature</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
       {programming ? (
         <View style={appStyles.card}>
           <Text style={appStyles.sectionTitle}>Programmazione</Text>
-          <Pressable style={appStyles.buttonSecondary} onPress={() => setProgramming(false)}>
-            <Text style={appStyles.buttonSecondaryText}>Torna a Temperature</Text>
-          </Pressable>
+
           <Text style={appStyles.label}>Settori</Text>
           <View style={appStyles.tabsRow}>
             {sectors.map((sector) => (
@@ -367,190 +332,178 @@ export function TemperatureScreen(props: Props) {
                 style={[appStyles.tabButton, selectedSectorId === sector.id ? appStyles.tabButtonActive : undefined]}
                 onPress={() => {
                   setSelectedSectorId(sector.id);
+                  startEditSector(sector);
                   void loadPoints(sector.id);
                 }}
               >
-                <Text style={[appStyles.tabText, selectedSectorId === sector.id ? appStyles.tabTextActive : undefined]}>
-                  {sector.name}
-                </Text>
+                <Text style={[appStyles.tabText, selectedSectorId === sector.id ? appStyles.tabTextActive : undefined]}>{sector.name}</Text>
               </Pressable>
             ))}
           </View>
-          {!sectors.length ? <Text style={appStyles.warn}>Nessun settore disponibile per questo site.</Text> : null}
-          <TextInput style={appStyles.input} value={newSectorName} onChangeText={setNewSectorName} placeholder="Nuovo settore" />
-          <Pressable style={appStyles.buttonSecondary} onPress={addSector} disabled={!props.token || loading}>
-            <Text style={appStyles.buttonSecondaryText}>Aggiungi settore</Text>
-          </Pressable>
-          <TextInput style={appStyles.input} value={editSectorName} onChangeText={setEditSectorName} placeholder="Modifica settore selezionato" />
-          <Pressable style={appStyles.buttonSecondary} onPress={saveSectorEdit} disabled={!props.token || loading || !selectedSectorId}>
-            <Text style={appStyles.buttonSecondaryText}>Salva settore</Text>
-          </Pressable>
+          <TextInput style={appStyles.input} value={sectorInput} onChangeText={setSectorInput} placeholder="Nuovo settore" />
+          <View style={appStyles.tabsRow}>
+            <Pressable style={appStyles.buttonSecondary} onPress={submitSector}>
+              <Text style={appStyles.buttonSecondaryText}>{editingSectorId ? "Salva modifiche settore" : "Aggiungi settore"}</Text>
+            </Pressable>
+            {editingSectorId ? (
+              <Pressable style={appStyles.buttonSecondary} onPress={startCreateSector}>
+                <Text style={appStyles.buttonSecondaryText}>Nuovo</Text>
+              </Pressable>
+            ) : null}
+          </View>
 
           <Text style={appStyles.label}>Punti freddo del settore</Text>
           <View style={appStyles.tabsRow}>
-            {points.map((point) => (
-              <Pressable
-                key={point.id}
-                style={[appStyles.tabButton, selectedPointId === point.id ? appStyles.tabButtonActive : undefined]}
-                onPress={() => setSelectedPointId(point.id)}
-              >
-                <Text style={[appStyles.tabText, selectedPointId === point.id ? appStyles.tabTextActive : undefined]}>
-                  {point.sort_order}. {point.name}
-                </Text>
-              </Pressable>
+            {sequencePoints.map((point) => (
+              <View key={point.id} style={appStyles.chipWithDelete}>
+                <Pressable
+                  style={[appStyles.tabButton, selectedPointId === point.id ? appStyles.tabButtonActive : undefined]}
+                  onPress={() => {
+                    setSelectedPointId(point.id);
+                    startEditPoint(point);
+                  }}
+                >
+                  <Text style={[appStyles.tabText, selectedPointId === point.id ? appStyles.tabTextActive : undefined]}>
+                    {point.sort_order}. {point.name}
+                  </Text>
+                </Pressable>
+                <Pressable style={appStyles.chipDelete} onPress={() => void removePoint(point)}>
+                  <Text style={appStyles.chipDeleteText}>X</Text>
+                </Pressable>
+              </View>
             ))}
           </View>
-          {!points.length ? <Text style={appStyles.warn}>Nessun punto freddo nel settore selezionato.</Text> : null}
-          <TextInput style={appStyles.input} value={newPointName} onChangeText={setNewPointName} placeholder="Nuovo punto freddo" />
-          <TextInput style={appStyles.input} value={newPointOrder} onChangeText={setNewPointOrder} placeholder="Ordine (es: 1)" keyboardType="numeric" />
-          <View style={appStyles.tabsRow}>
-            {(["FRIDGE", "FREEZER", "COLD_ROOM", "OTHER"] as const).map((type) => (
-              <Pressable
-                key={`new-${type}`}
-                style={[appStyles.tabButton, newPointType === type ? appStyles.tabButtonActive : undefined]}
-                onPress={() => setNewPointType(type)}
-              >
-                <Text style={[appStyles.tabText, newPointType === type ? appStyles.tabTextActive : undefined]}>{type}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Pressable style={appStyles.buttonSecondary} onPress={addPoint} disabled={!props.token || loading || !selectedSectorId}>
-            <Text style={appStyles.buttonSecondaryText}>Aggiungi punto freddo</Text>
-          </Pressable>
 
-          <TextInput style={appStyles.input} value={editPointName} onChangeText={setEditPointName} placeholder="Modifica punto selezionato" />
-          <TextInput style={appStyles.input} value={editPointOrder} onChangeText={setEditPointOrder} placeholder="Nuovo ordine" keyboardType="numeric" />
+          <TextInput style={appStyles.input} value={pointNameInput} onChangeText={setPointNameInput} placeholder="Nuovo punto freddo" />
+          <TextInput style={appStyles.input} value={pointOrderInput} onChangeText={setPointOrderInput} placeholder="Ordine sequenza" keyboardType="numeric" />
           <View style={appStyles.tabsRow}>
             {(["FRIDGE", "FREEZER", "COLD_ROOM", "OTHER"] as const).map((type) => (
               <Pressable
-                key={`edit-${type}`}
-                style={[appStyles.tabButton, editPointType === type ? appStyles.tabButtonActive : undefined]}
-                onPress={() => setEditPointType(type)}
+                key={type}
+                style={[appStyles.tabButton, pointTypeInput === type ? appStyles.tabButtonActive : undefined]}
+                onPress={() => setPointTypeInput(type)}
               >
-                <Text style={[appStyles.tabText, editPointType === type ? appStyles.tabTextActive : undefined]}>{type}</Text>
+                <Text style={[appStyles.tabText, pointTypeInput === type ? appStyles.tabTextActive : undefined]}>{type}</Text>
               </Pressable>
             ))}
           </View>
-          <Pressable style={appStyles.buttonSecondary} onPress={savePointEdit} disabled={!props.token || loading || !selectedPointId}>
-            <Text style={appStyles.buttonSecondaryText}>Salva punto freddo</Text>
-          </Pressable>
+          <View style={appStyles.tabsRow}>
+            <Pressable style={appStyles.buttonSecondary} onPress={submitPoint} disabled={!selectedSector}>
+              <Text style={appStyles.buttonSecondaryText}>{editingPointId ? "Salva modifiche" : "Aggiungi punto freddo"}</Text>
+            </Pressable>
+            {editingPointId ? (
+              <Pressable style={appStyles.buttonSecondary} onPress={startCreatePoint}>
+                <Text style={appStyles.buttonSecondaryText}>Nuovo</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       ) : (
-        <View style={appStyles.card}>
-          <Text style={appStyles.sectionTitle}>Operativa</Text>
-          <Text style={appStyles.label}>Settore</Text>
-          <View style={appStyles.tabsRow}>
-            {sectors.map((sector) => (
-              <Pressable
-                key={sector.id}
-                style={[appStyles.tabButton, selectedSectorId === sector.id ? appStyles.tabButtonActive : undefined]}
-                onPress={() => {
-                  setSelectedSectorId(sector.id);
-                  void loadPoints(sector.id);
-                }}
-              >
-                <Text style={[appStyles.tabText, selectedSectorId === sector.id ? appStyles.tabTextActive : undefined]}>
-                  {sector.name}
-                </Text>
+        <>
+          <View style={appStyles.card}>
+            <Text style={appStyles.sectionTitle}>Operativa</Text>
+            <Text style={appStyles.label}>Settore</Text>
+            <View style={appStyles.tabsRow}>
+              {sectors.map((sector) => (
+                <Pressable
+                  key={sector.id}
+                  style={[appStyles.tabButton, selectedSectorId === sector.id ? appStyles.tabButtonActive : undefined]}
+                  onPress={() => {
+                    setSelectedSectorId(sector.id);
+                    void loadPoints(sector.id);
+                  }}
+                >
+                  <Text style={[appStyles.tabText, selectedSectorId === sector.id ? appStyles.tabTextActive : undefined]}>{sector.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={appStyles.label}>Punti freddo</Text>
+            <View style={appStyles.tabsRow}>
+              {sequencePoints.map((point) => (
+                <Pressable
+                  key={point.id}
+                  style={[appStyles.tabButton, selectedPointId === point.id ? appStyles.tabButtonActive : undefined]}
+                  onPress={() => setSelectedPointId(point.id)}
+                >
+                  <Text style={[appStyles.tabText, selectedPointId === point.id ? appStyles.tabTextActive : undefined]}>
+                    {point.sort_order}. {point.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={appStyles.label}>Modalita</Text>
+            <View style={appStyles.tabsRow}>
+              <Pressable style={[appStyles.tabButton, mode === "single" ? appStyles.tabButtonActive : undefined]} onPress={() => setMode("single")}>
+                <Text style={[appStyles.tabText, mode === "single" ? appStyles.tabTextActive : undefined]}>Scatto singolo</Text>
               </Pressable>
-            ))}
-          </View>
-
-          <Text style={appStyles.label}>Punti freddo</Text>
-          <View style={appStyles.tabsRow}>
-            {sequencePoints.map((point) => (
-              <Pressable
-                key={point.id}
-                style={[appStyles.tabButton, selectedPointId === point.id ? appStyles.tabButtonActive : undefined]}
-                onPress={() => setSelectedPointId(point.id)}
-              >
-                <Text style={[appStyles.tabText, selectedPointId === point.id ? appStyles.tabTextActive : undefined]}>
-                  {point.sort_order}. {point.name}
-                </Text>
+              <Pressable style={[appStyles.tabButton, mode === "sequence" ? appStyles.tabButtonActive : undefined]} onPress={() => setMode("sequence")}>
+                <Text style={[appStyles.tabText, mode === "sequence" ? appStyles.tabTextActive : undefined]}>Modalita sequenza</Text>
               </Pressable>
-            ))}
+            </View>
+
+            {mode === "single" ? (
+              <Pressable style={appStyles.button} onPress={captureSingle} disabled={loading || !selectedPoint}>
+                <Text style={appStyles.buttonText}>{loading ? "Elaborazione..." : "Scatta singolo"}</Text>
+              </Pressable>
+            ) : (
+              <>
+                <Text style={appStyles.tokenPreview}>
+                  {currentSequencePoint
+                    ? `Prossimo: ${currentSequencePoint.sort_order}. ${currentSequencePoint.name}`
+                    : "Sequenza completata o non configurata"}
+                </Text>
+                <Pressable style={appStyles.button} onPress={openSequenceCamera} disabled={loading || !sequencePoints.length}>
+                  <Text style={appStyles.buttonText}>Apri camera sequenza</Text>
+                </Pressable>
+              </>
+            )}
           </View>
 
-          <Text style={appStyles.label}>Modalita</Text>
-          <View style={appStyles.tabsRow}>
-            <Pressable
-              style={[appStyles.tabButton, mode === "single" ? appStyles.tabButtonActive : undefined]}
-              onPress={() => setMode("single")}
-            >
-              <Text style={[appStyles.tabText, mode === "single" ? appStyles.tabTextActive : undefined]}>Scatto singolo</Text>
-            </Pressable>
-            <Pressable
-              style={[appStyles.tabButton, mode === "sequence" ? appStyles.tabButtonActive : undefined]}
-              onPress={() => setMode("sequence")}
-            >
-              <Text style={[appStyles.tabText, mode === "sequence" ? appStyles.tabTextActive : undefined]}>Modalita sequenza</Text>
-            </Pressable>
-          </View>
-
-          {mode === "single" ? (
-            <Pressable style={appStyles.button} onPress={captureSingle} disabled={!props.token || loading || !selectedPointId}>
-              <Text style={appStyles.buttonText}>{loading ? "Elaborazione..." : "Scatta singolo"}</Text>
-            </Pressable>
-          ) : (
-            <>
+          {mode === "sequence" && sequenceCameraOpen ? (
+            <View style={appStyles.card}>
+              <Text style={appStyles.sectionTitle}>Camera Sequenza</Text>
+              <CameraView ref={cameraRef} style={appStyles.cameraPreview} facing="back" />
               <Text style={appStyles.tokenPreview}>
-                {currentSequencePoint
-                  ? `Prossimo: ${currentSequencePoint.sort_order}. ${currentSequencePoint.name}`
-                  : "Sequenza completata o non configurata"}
+                Step {Math.min(sequenceStepIndex + 1, Math.max(sequencePoints.length, 1))}/{Math.max(sequencePoints.length, 1)} -{" "}
+                {currentSequencePoint?.name || "Completata"}
               </Text>
-              <Pressable style={appStyles.button} onPress={openSequenceCamera} disabled={!props.token || loading || !sequencePoints.length}>
-                <Text style={appStyles.buttonText}>Apri camera sequenza</Text>
-              </Pressable>
-            </>
-          )}
-        </View>
+              <View style={appStyles.tabsRow}>
+                <Pressable style={appStyles.button} onPress={takeSequenceShot} disabled={takingShot || !currentSequencePoint}>
+                  <Text style={appStyles.buttonText}>{takingShot ? "Scatto..." : "Scatta"}</Text>
+                </Pressable>
+                <Pressable style={appStyles.buttonSecondary} onPress={() => setSequenceCameraOpen(false)}>
+                  <Text style={appStyles.buttonSecondaryText}>Fine sessione</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
+          {lastCapture ? (
+            <View style={appStyles.card}>
+              <Text style={appStyles.sectionTitle}>Ultima rilevazione</Text>
+              <Text>
+                {lastCapture.reading.cold_point_name || lastCapture.reading.device_label || "-"}: {lastCapture.reading.temperature_celsius}{" "}
+                {lastCapture.reading.unit}
+              </Text>
+              <Text>Foto persistita: {lastCapture.privacy.photo_persisted ? "SI" : "NO"}</Text>
+            </View>
+          ) : null}
+
+          {readings.length > 0 ? (
+            <View style={appStyles.card}>
+              <Text style={appStyles.sectionTitle}>Storico</Text>
+              {readings.map((row) => (
+                <Text key={row.id}>
+                  {row.observed_at.slice(0, 16)} | {row.sector_name || "-"} | {row.cold_point_name || row.device_label || "-"} |{" "}
+                  {row.temperature_celsius} {row.unit}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </>
       )}
-
-      {mode === "sequence" && sequenceCameraOpen ? (
-        <View style={appStyles.card}>
-          <Text style={appStyles.sectionTitle}>Camera Sequenza</Text>
-          <CameraView ref={cameraRef} style={appStyles.cameraPreview} facing="back" />
-          <Text style={appStyles.tokenPreview}>
-            Step {Math.min(sequenceStepIndex + 1, Math.max(sequencePoints.length, 1))}/{Math.max(sequencePoints.length, 1)} -{" "}
-            {currentSequencePoint?.name || "Completata"}
-          </Text>
-          <View style={appStyles.tabsRow}>
-            <Pressable
-              style={appStyles.button}
-              onPress={takeSequenceShot}
-              disabled={takingShot || !currentSequencePoint}
-            >
-              <Text style={appStyles.buttonText}>{takingShot ? "Scatto..." : "Scatta"}</Text>
-            </Pressable>
-            <Pressable style={appStyles.buttonSecondary} onPress={() => setSequenceCameraOpen(false)}>
-              <Text style={appStyles.buttonSecondaryText}>Fine sessione</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
-
-      {lastCapture ? (
-        <View style={appStyles.card}>
-          <Text style={appStyles.sectionTitle}>Ultima rilevazione</Text>
-          <Text>
-            {lastCapture.reading.cold_point_name || lastCapture.reading.device_label || "-"}: {lastCapture.reading.temperature_celsius}{" "}
-            {lastCapture.reading.unit}
-          </Text>
-          <Text>Foto persistita: {lastCapture.privacy.photo_persisted ? "SI" : "NO"}</Text>
-        </View>
-      ) : null}
-
-      {readings.length > 0 ? (
-        <View style={appStyles.card}>
-          <Text style={appStyles.sectionTitle}>Storico</Text>
-          {readings.map((row) => (
-            <Text key={row.id}>
-              {row.observed_at.slice(0, 16)} | {row.sector_name || "-"} | {row.cold_point_name || row.device_label || "-"} |{" "}
-              {row.temperature_celsius} {row.unit}
-            </Text>
-          ))}
-        </View>
-      ) : null}
     </>
   );
 }

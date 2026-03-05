@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, Text } from "react-native";
+import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 
 import { fetchDrafts, fetchMe, loginToken } from "./src/api";
 import { AuthCard } from "./src/components/AuthCard";
@@ -64,35 +64,57 @@ export default function App() {
     }
   }
 
+  function logout() {
+    setToken("");
+    setError("");
+    setDrafts([]);
+    setCaptureResult(null);
+    setActiveTab("capture");
+  }
+
   return (
     <SafeAreaView style={appStyles.safe}>
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={appStyles.container}>
-        <Text style={appStyles.title}>Traceability Mobile</Text>
-        <Text style={appStyles.subtitle}>App mobile-first con componenti separati per capture, draft, lifecycle e report.</Text>
-
-        <AuthCard
-          username={username}
-          setUsername={setUsername}
-          password={password}
-          setPassword={setPassword}
-          token={token}
-          onLogin={login}
-        />
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={appStyles.tabsRow}>
-          {TABS.map((tab) => (
-            <Pressable
-              key={tab.key}
-              style={[appStyles.tabButton, activeTab === tab.key ? appStyles.tabButtonActive : undefined]}
-              onPress={() => setActiveTab(tab.key)}
-            >
-              <Text style={[appStyles.tabText, activeTab === tab.key ? appStyles.tabTextActive : undefined]}>{tab.label}</Text>
+        {!token ? (
+          <>
+            <Text style={appStyles.title}>Traceability Mobile</Text>
+            <Text style={appStyles.subtitle}>Accedi per usare l'app.</Text>
+            <AuthCard
+              username={username}
+              setUsername={setUsername}
+              password={password}
+              setPassword={setPassword}
+              token={token}
+              onLogin={login}
+            />
+          </>
+        ) : (
+          <View style={appStyles.card}>
+            <Text style={appStyles.sectionTitle}>Sessione attiva</Text>
+            <Text style={appStyles.tokenPreview}>Utente: {username}</Text>
+            <Text style={appStyles.tokenPreview}>Site: {siteCode}</Text>
+            <Pressable style={appStyles.buttonSecondary} onPress={logout}>
+              <Text style={appStyles.buttonSecondaryText}>Logout</Text>
             </Pressable>
-          ))}
-        </ScrollView>
+          </View>
+        )}
 
-        {activeTab === "capture" ? (
+        {token ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={appStyles.tabsRow}>
+            {TABS.map((tab) => (
+              <Pressable
+                key={tab.key}
+                style={[appStyles.tabButton, activeTab === tab.key ? appStyles.tabButtonActive : undefined]}
+                onPress={() => setActiveTab(tab.key)}
+              >
+                <Text style={[appStyles.tabText, activeTab === tab.key ? appStyles.tabTextActive : undefined]}>{tab.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
+
+        {token && activeTab === "capture" ? (
           <CaptureScreen
             token={token}
             siteCode={siteCode}
@@ -108,15 +130,15 @@ export default function App() {
           />
         ) : null}
 
-        {activeTab === "drafts" ? (
+        {token && activeTab === "drafts" ? (
           <DraftsScreen token={token} drafts={drafts} setError={setError} refreshDrafts={refreshDrafts} />
         ) : null}
 
-        {activeTab === "lifecycle" ? <LifecycleScreen token={token} setError={setError} /> : null}
-        {activeTab === "temperatures" ? (
+        {token && activeTab === "lifecycle" ? <LifecycleScreen token={token} setError={setError} /> : null}
+        {token && activeTab === "temperatures" ? (
           <TemperatureScreen token={token} siteCode={siteCode} setSiteCode={setSiteCode} setError={setError} />
         ) : null}
-        {activeTab === "reports" ? <ReportsScreen siteCode={siteCode} token={token} /> : null}
+        {token && activeTab === "reports" ? <ReportsScreen siteCode={siteCode} token={token} /> : null}
         {error ? <Text style={appStyles.error}>{error}</Text> : null}
       </ScrollView>
     </SafeAreaView>

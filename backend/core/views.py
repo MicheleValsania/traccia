@@ -425,6 +425,25 @@ class ColdPointDetailView(APIView):
         )
         return Response(ColdPointSerializer(point).data, status=status.HTTP_200_OK)
 
+    def delete(self, request, point_id):
+        point = ColdPoint.objects.select_related("site", "sector").filter(id=point_id).first()
+        if not point:
+            return Response({"detail": "Cold point not found."}, status=status.HTTP_404_NOT_FOUND)
+        auth_error = _ensure_site_role(request, point.site, SITE_WRITE_ROLES)
+        if auth_error:
+            return auth_error
+        point_snapshot = {"id": str(point.id), "name": point.name, "sector_id": str(point.sector_id)}
+        point.delete()
+        log_audit_event(
+            action="COLD_POINT_DELETED",
+            request=request,
+            site=point.site,
+            object_type="ColdPoint",
+            object_id=point_snapshot["id"],
+            payload=point_snapshot,
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class TemperatureRouteListCreateView(APIView):
     permission_classes = [IsAuthenticated]

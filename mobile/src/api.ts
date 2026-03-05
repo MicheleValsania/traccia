@@ -352,6 +352,17 @@ export async function updateColdPoint(params: {
   return (await response.json()) as ColdPoint;
 }
 
+export async function deleteColdPoint(token: string, pointId: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/cold-points/${pointId}`,
+    withAuth(token, { method: "DELETE" }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Eliminazione punto freddo fallita.");
+  }
+}
+
 export async function fetchTemperatureRoutes(token: string, siteCode: string, sectorId?: string): Promise<TemperatureRoute[]> {
   const query = new URLSearchParams({ site_code: siteCode });
   if (sectorId) query.set("sector_id", sectorId);
