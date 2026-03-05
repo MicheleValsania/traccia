@@ -86,6 +86,12 @@ class ColdSectorWriteSerializer(serializers.Serializer):
     is_active = serializers.BooleanField(required=False, default=True)
 
 
+class ColdSectorUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=120, required=False)
+    sort_order = serializers.IntegerField(required=False, min_value=0)
+    is_active = serializers.BooleanField(required=False)
+
+
 class ColdPointSerializer(serializers.ModelSerializer):
     site_code = serializers.CharField(source="site.code", read_only=True)
     sector_id = serializers.UUIDField(source="sector.id", read_only=True)
@@ -118,6 +124,16 @@ class ColdPointWriteSerializer(serializers.Serializer):
     min_temp_celsius = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
     max_temp_celsius = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
     is_active = serializers.BooleanField(required=False, default=True)
+
+
+class ColdPointUpdateSerializer(serializers.Serializer):
+    sector_id = serializers.UUIDField(required=False)
+    name = serializers.CharField(max_length=120, required=False)
+    device_type = serializers.ChoiceField(choices=TemperatureDeviceType.choices, required=False)
+    sort_order = serializers.IntegerField(required=False, min_value=0)
+    min_temp_celsius = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+    max_temp_celsius = serializers.DecimalField(max_digits=6, decimal_places=2, required=False, allow_null=True)
+    is_active = serializers.BooleanField(required=False)
 
 
 class TemperatureRouteStepSerializer(serializers.ModelSerializer):

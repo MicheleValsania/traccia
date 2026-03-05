@@ -48,8 +48,10 @@ from .serializers import (
     SiteSerializer,
     ColdSectorSerializer,
     ColdSectorWriteSerializer,
+    ColdSectorUpdateSerializer,
     ColdPointSerializer,
     ColdPointWriteSerializer,
+    ColdPointUpdateSerializer,
     TemperatureCaptureSerializer,
     TemperatureListFilterSerializer,
     TemperatureReadingSerializer,
@@ -292,6 +294,37 @@ class ColdSectorListCreateView(APIView):
         return Response(ColdSectorSerializer(sector).data, status=status.HTTP_201_CREATED)
 
 
+class ColdSectorDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, sector_id):
+        sector = ColdSector.objects.select_related("site").filter(id=sector_id).first()
+        if not sector:
+            return Response({"detail": "Sector not found."}, status=status.HTTP_404_NOT_FOUND)
+        auth_error = _ensure_site_role(request, sector.site, SITE_WRITE_ROLES)
+        if auth_error:
+            return auth_error
+        payload = ColdSectorUpdateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        if "name" in data:
+            sector.name = data["name"].strip()
+        if "sort_order" in data:
+            sector.sort_order = data["sort_order"]
+        if "is_active" in data:
+            sector.is_active = data["is_active"]
+        sector.save()
+        log_audit_event(
+            action="COLD_SECTOR_UPDATED",
+            request=request,
+            site=sector.site,
+            object_type="ColdSector",
+            object_id=str(sector.id),
+            payload={"name": sector.name, "sort_order": sector.sort_order, "is_active": sector.is_active},
+        )
+        return Response(ColdSectorSerializer(sector).data, status=status.HTTP_200_OK)
+
+
 class ColdPointListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -344,6 +377,53 @@ class ColdPointListCreateView(APIView):
             payload={"name": point.name, "sector_id": str(sector.id), "device_type": point.device_type},
         )
         return Response(ColdPointSerializer(point).data, status=status.HTTP_201_CREATED)
+
+
+class ColdPointDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, point_id):
+        point = ColdPoint.objects.select_related("site", "sector").filter(id=point_id).first()
+        if not point:
+            return Response({"detail": "Cold point not found."}, status=status.HTTP_404_NOT_FOUND)
+        auth_error = _ensure_site_role(request, point.site, SITE_WRITE_ROLES)
+        if auth_error:
+            return auth_error
+        payload = ColdPointUpdateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        if "sector_id" in data:
+            sector = ColdSector.objects.filter(id=data["sector_id"], site=point.site).first()
+            if not sector:
+                return Response({"detail": "Unknown sector_id for site."}, status=status.HTTP_400_BAD_REQUEST)
+            point.sector = sector
+        if "name" in data:
+            point.name = data["name"].strip()
+        if "device_type" in data:
+            point.device_type = data["device_type"]
+        if "sort_order" in data:
+            point.sort_order = data["sort_order"]
+        if "min_temp_celsius" in data:
+            point.min_temp_celsius = data.get("min_temp_celsius")
+        if "max_temp_celsius" in data:
+            point.max_temp_celsius = data.get("max_temp_celsius")
+        if "is_active" in data:
+            point.is_active = data["is_active"]
+        point.save()
+        log_audit_event(
+            action="COLD_POINT_UPDATED",
+            request=request,
+            site=point.site,
+            object_type="ColdPoint",
+            object_id=str(point.id),
+            payload={
+                "name": point.name,
+                "sector_id": str(point.sector_id),
+                "device_type": point.device_type,
+                "sort_order": point.sort_order,
+            },
+        )
+        return Response(ColdPointSerializer(point).data, status=status.HTTP_200_OK)
 
 
 class TemperatureRouteListCreateView(APIView):

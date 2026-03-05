@@ -4,6 +4,7 @@ import {
   ColdPoint,
   ColdSector,
   DraftLot,
+  MeResponse,
   TemperatureCaptureResponse,
   TemperatureReading,
   TemperatureRoute,
@@ -57,6 +58,15 @@ export async function loginToken(username: string, password: string): Promise<st
   }
   const body = (await response.json()) as { token: string };
   return body.token;
+}
+
+export async function fetchMe(token: string): Promise<MeResponse> {
+  const response = await fetch(`${API_BASE}/auth/me`, withAuth(token, { method: "GET" }));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento profilo utente fallito.");
+  }
+  return (await response.json()) as MeResponse;
 }
 
 export async function captureLabelPhoto(params: {
@@ -249,6 +259,31 @@ export async function createColdSector(params: {
   return (await response.json()) as ColdSector;
 }
 
+export async function updateColdSector(params: {
+  token: string;
+  sectorId: string;
+  name?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}): Promise<ColdSector> {
+  const response = await fetch(
+    `${API_BASE}/cold-sectors/${params.sectorId}`,
+    withAuth(params.token, {
+      method: "PUT",
+      body: JSON.stringify({
+        ...(params.name !== undefined ? { name: params.name } : {}),
+        ...(params.sortOrder !== undefined ? { sort_order: params.sortOrder } : {}),
+        ...(params.isActive !== undefined ? { is_active: params.isActive } : {}),
+      }),
+    }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Modifica settore fallita.");
+  }
+  return (await response.json()) as ColdSector;
+}
+
 export async function fetchColdPoints(token: string, siteCode: string, sectorId?: string): Promise<ColdPoint[]> {
   const query = new URLSearchParams({ site_code: siteCode });
   if (sectorId) query.set("sector_id", sectorId);
@@ -284,6 +319,35 @@ export async function createColdPoint(params: {
   if (!response.ok) {
     const details = await response.text();
     throw new Error(details || "Creazione punto freddo fallita.");
+  }
+  return (await response.json()) as ColdPoint;
+}
+
+export async function updateColdPoint(params: {
+  token: string;
+  pointId: string;
+  sectorId?: string;
+  name?: string;
+  deviceType?: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER";
+  sortOrder?: number;
+  isActive?: boolean;
+}): Promise<ColdPoint> {
+  const response = await fetch(
+    `${API_BASE}/cold-points/${params.pointId}`,
+    withAuth(params.token, {
+      method: "PUT",
+      body: JSON.stringify({
+        ...(params.sectorId !== undefined ? { sector_id: params.sectorId } : {}),
+        ...(params.name !== undefined ? { name: params.name } : {}),
+        ...(params.deviceType !== undefined ? { device_type: params.deviceType } : {}),
+        ...(params.sortOrder !== undefined ? { sort_order: params.sortOrder } : {}),
+        ...(params.isActive !== undefined ? { is_active: params.isActive } : {}),
+      }),
+    }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Modifica punto freddo fallita.");
   }
   return (await response.json()) as ColdPoint;
 }
