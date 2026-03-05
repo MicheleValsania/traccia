@@ -122,4 +122,10 @@ export type TemperatureRoute = {
   updated_at: string;
 };
 
+export type MeResponse = {
+  username: string;
+  is_superuser: boolean;
+  memberships: Array<{ site_code: string; site_name: string; role: string }>;
+};
+
 export type TabKey = "capture" | "drafts" | "lifecycle" | "temperatures" | "reports";

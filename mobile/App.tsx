@@ -2,7 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text } from "react-native";
 
-import { fetchDrafts, loginToken } from "./src/api";
+import { fetchDrafts, fetchMe, loginToken } from "./src/api";
 import { AuthCard } from "./src/components/AuthCard";
 import { CaptureScreen } from "./src/screens/CaptureScreen";
 import { DraftsScreen } from "./src/screens/DraftsScreen";
@@ -37,6 +37,15 @@ export default function App() {
     try {
       const nextToken = await loginToken(username, password);
       setToken(nextToken);
+      try {
+        const profile = await fetchMe(nextToken);
+        const firstMembership = profile.memberships[0];
+        if (firstMembership) {
+          setSiteCode(firstMembership.site_code);
+        }
+      } catch {
+        // Keep current site code if profile loading fails.
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Errore login.");
     }
