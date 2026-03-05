@@ -25,6 +25,7 @@ type Props = {
 
 export function TemperatureScreen(props: Props) {
   const [loading, setLoading] = React.useState(false);
+  const [infoMessage, setInfoMessage] = React.useState("");
   const [programming, setProgramming] = React.useState(false);
   const [mode, setMode] = React.useState<"single" | "sequence">("single");
   const [sectors, setSectors] = React.useState<ColdSector[]>([]);
@@ -88,6 +89,7 @@ export function TemperatureScreen(props: Props) {
       return;
     }
     try {
+      setLoading(true);
       const sectorRows = await fetchColdSectors(props.token, props.siteCode);
       setSectors(sectorRows);
       const nextSectorId = selectedSectorId && sectorRows.some((s) => s.id === selectedSectorId)
@@ -97,11 +99,16 @@ export function TemperatureScreen(props: Props) {
       if (!nextSectorId) {
         setPoints([]);
         setSelectedPointId("");
+        setInfoMessage(`Configurazione caricata: 0 settori per site ${props.siteCode}.`);
         return;
       }
       await loadPoints(nextSectorId);
+      setInfoMessage(`Configurazione caricata: ${sectorRows.length} settori su site ${props.siteCode}.`);
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore caricamento configurazione.");
+      setInfoMessage("Errore caricamento configurazione.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -116,6 +123,7 @@ export function TemperatureScreen(props: Props) {
     const nextPointId = selectedPointId && sorted.some((p) => p.id === selectedPointId) ? selectedPointId : (sorted[0]?.id ?? "");
     setSelectedPointId(nextPointId);
     setSequenceStepIndex(0);
+    setInfoMessage(`Settore caricato: ${sorted.length} punti freddo.`);
   }
 
   async function refreshReadings() {
@@ -240,8 +248,10 @@ export function TemperatureScreen(props: Props) {
       await createColdSector({ token: props.token, siteCode: props.siteCode, name, sortOrder: sectors.length + 1 });
       setNewSectorName("");
       await loadConfiguration();
+      setInfoMessage("Settore aggiunto.");
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore creazione settore.");
+      setInfoMessage("Errore creazione settore.");
     }
   }
 
@@ -253,8 +263,10 @@ export function TemperatureScreen(props: Props) {
     try {
       await updateColdSector({ token: props.token, sectorId: selectedSector.id, name: editSectorName.trim() });
       await loadConfiguration();
+      setInfoMessage("Settore aggiornato.");
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore modifica settore.");
+      setInfoMessage("Errore modifica settore.");
     }
   }
 
@@ -276,8 +288,10 @@ export function TemperatureScreen(props: Props) {
       });
       setNewPointName("");
       await loadPoints(selectedSector.id);
+      setInfoMessage("Punto freddo aggiunto.");
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore creazione punto freddo.");
+      setInfoMessage("Errore creazione punto freddo.");
     }
   }
 
@@ -296,8 +310,10 @@ export function TemperatureScreen(props: Props) {
         sortOrder: Number(editPointOrder) || selectedPoint.sort_order,
       });
       await loadPoints(selectedSector.id);
+      setInfoMessage("Punto freddo aggiornato.");
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore modifica punto freddo.");
+      setInfoMessage("Errore modifica punto freddo.");
     }
   }
 
@@ -306,6 +322,8 @@ export function TemperatureScreen(props: Props) {
       <View style={appStyles.card}>
         <Text style={appStyles.sectionTitle}>Temperature</Text>
         <Text style={appStyles.tokenPreview}>Le foto sono elaborate OCR senza persistenza immagine.</Text>
+        <Text style={appStyles.tokenPreview}>Site attuale: {props.siteCode || "-"}</Text>
+        {infoMessage ? <Text style={appStyles.tokenPreview}>{infoMessage}</Text> : null}
 
         <Text style={appStyles.label}>Site code</Text>
         <TextInput
@@ -338,6 +356,9 @@ export function TemperatureScreen(props: Props) {
       {programming ? (
         <View style={appStyles.card}>
           <Text style={appStyles.sectionTitle}>Programmazione</Text>
+          <Pressable style={appStyles.buttonSecondary} onPress={() => setProgramming(false)}>
+            <Text style={appStyles.buttonSecondaryText}>Torna a Temperature</Text>
+          </Pressable>
           <Text style={appStyles.label}>Settori</Text>
           <View style={appStyles.tabsRow}>
             {sectors.map((sector) => (
@@ -355,6 +376,7 @@ export function TemperatureScreen(props: Props) {
               </Pressable>
             ))}
           </View>
+          {!sectors.length ? <Text style={appStyles.warn}>Nessun settore disponibile per questo site.</Text> : null}
           <TextInput style={appStyles.input} value={newSectorName} onChangeText={setNewSectorName} placeholder="Nuovo settore" />
           <Pressable style={appStyles.buttonSecondary} onPress={addSector} disabled={!props.token || loading}>
             <Text style={appStyles.buttonSecondaryText}>Aggiungi settore</Text>
@@ -378,6 +400,7 @@ export function TemperatureScreen(props: Props) {
               </Pressable>
             ))}
           </View>
+          {!points.length ? <Text style={appStyles.warn}>Nessun punto freddo nel settore selezionato.</Text> : null}
           <TextInput style={appStyles.input} value={newPointName} onChangeText={setNewPointName} placeholder="Nuovo punto freddo" />
           <TextInput style={appStyles.input} value={newPointOrder} onChangeText={setNewPointOrder} placeholder="Ordine (es: 1)" keyboardType="numeric" />
           <View style={appStyles.tabsRow}>

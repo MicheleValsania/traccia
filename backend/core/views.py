@@ -260,7 +260,7 @@ class ColdSectorListCreateView(APIView):
             return Response({"detail": "site_code is required."}, status=status.HTTP_400_BAD_REQUEST)
         site = Site.objects.filter(code=site_code).first()
         if not site:
-            return Response([], status=status.HTTP_200_OK)
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_site_role(request, site, SITE_READ_ROLES)
         if auth_error:
             return auth_error
@@ -334,7 +334,7 @@ class ColdPointListCreateView(APIView):
             return Response({"detail": "site_code is required."}, status=status.HTTP_400_BAD_REQUEST)
         site = Site.objects.filter(code=site_code).first()
         if not site:
-            return Response([], status=status.HTTP_200_OK)
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_site_role(request, site, SITE_READ_ROLES)
         if auth_error:
             return auth_error
@@ -435,7 +435,7 @@ class TemperatureRouteListCreateView(APIView):
             return Response({"detail": "site_code is required."}, status=status.HTTP_400_BAD_REQUEST)
         site = Site.objects.filter(code=site_code).first()
         if not site:
-            return Response([], status=status.HTTP_200_OK)
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_site_role(request, site, SITE_READ_ROLES)
         if auth_error:
             return auth_error
@@ -638,7 +638,7 @@ class TemperatureReadingListView(APIView):
         params = filters.validated_data
         site = Site.objects.filter(code=params["site_code"]).first()
         if not site:
-            return Response([], status=status.HTTP_200_OK)
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_site_role(request, site, SITE_READ_ROLES)
         if auth_error:
             return auth_error
