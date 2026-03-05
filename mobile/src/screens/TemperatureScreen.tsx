@@ -83,6 +83,10 @@ export function TemperatureScreen(props: Props) {
   }, [selectedSectorId, selectedPointId, mode]);
 
   async function loadConfiguration() {
+    if (!props.token) {
+      props.setError("Effettua login prima di usare Temperature.");
+      return;
+    }
     try {
       const sectorRows = await fetchColdSectors(props.token, props.siteCode);
       setSectors(sectorRows);
@@ -102,6 +106,10 @@ export function TemperatureScreen(props: Props) {
   }
 
   async function loadPoints(sectorId: string) {
+    if (!props.token) {
+      props.setError("Effettua login prima di usare Temperature.");
+      return;
+    }
     const pointRows = await fetchColdPoints(props.token, props.siteCode, sectorId);
     const sorted = pointRows.slice().sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
     setPoints(sorted);
@@ -111,7 +119,10 @@ export function TemperatureScreen(props: Props) {
   }
 
   async function refreshReadings() {
-    if (!props.token) return;
+    if (!props.token) {
+      props.setError("Effettua login prima di caricare lo storico.");
+      return;
+    }
     try {
       const rows = await fetchTemperatureReadings(props.token, props.siteCode, 20, {
         sectorId: selectedSectorId || undefined,
@@ -143,6 +154,10 @@ export function TemperatureScreen(props: Props) {
   }
 
   async function captureSingle() {
+    if (!props.token) {
+      props.setError("Effettua login prima dello scatto.");
+      return;
+    }
     if (!selectedPoint) {
       props.setError("Seleziona un punto freddo.");
       return;
@@ -170,6 +185,10 @@ export function TemperatureScreen(props: Props) {
   }
 
   async function openSequenceCamera() {
+    if (!props.token) {
+      props.setError("Effettua login prima della sequenza.");
+      return;
+    }
     props.setError("");
     if (!sequencePoints.length) {
       props.setError("Configura almeno un punto freddo nel settore selezionato.");
@@ -297,10 +316,20 @@ export function TemperatureScreen(props: Props) {
           placeholder="MAIN"
         />
         <View style={appStyles.tabsRow}>
-          <Pressable style={appStyles.buttonSecondary} onPress={loadConfiguration} disabled={!props.token || loading}>
+          <Pressable style={appStyles.buttonSecondary} onPress={loadConfiguration} disabled={loading}>
             <Text style={appStyles.buttonSecondaryText}>Aggiorna</Text>
           </Pressable>
-          <Pressable style={appStyles.button} onPress={() => setProgramming((prev) => !prev)} disabled={!props.token || loading}>
+          <Pressable
+            style={appStyles.button}
+            onPress={() => {
+              if (!props.token) {
+                props.setError("Effettua login prima di entrare in Programmazione.");
+                return;
+              }
+              setProgramming((prev) => !prev);
+            }}
+            disabled={loading}
+          >
             <Text style={appStyles.buttonText}>{programming ? "Torna a Temperature" : "Programmazione"}</Text>
           </Pressable>
         </View>
