@@ -420,7 +420,6 @@ export function TemperatureScreen(props: Props) {
     <>
       <View style={appStyles.card}>
         <Text style={appStyles.sectionTitle}>Temperature</Text>
-        <Text style={appStyles.tokenPreview}>Site: {props.siteCode}</Text>
         {infoMessage ? <Text style={appStyles.infoText}>{infoMessage}</Text> : null}
 
         <View style={appStyles.tabsRow}>

@@ -1,7 +1,7 @@
 import * as ImagePicker from "expo-image-picker";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import React from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { captureLabelPhoto } from "../api";
 import { appStyles } from "../styles";
@@ -196,16 +196,6 @@ export function CaptureScreen(props: Props) {
   return (
     <>
       <View style={appStyles.card}>
-        <Text style={appStyles.label}>Site code</Text>
-        <TextInput
-          style={appStyles.input}
-          value={props.siteCode}
-          onChangeText={props.setSiteCode}
-          autoCapitalize="characters"
-          placeholder="MAIN"
-        />
-        <Text style={appStyles.label}>Fornitore (opzionale)</Text>
-        <TextInput style={appStyles.input} value={props.supplierName} onChangeText={props.setSupplierName} />
         <Text style={appStyles.label}>Modalità operativa</Text>
         <View style={appStyles.tabsRow}>
           <Pressable

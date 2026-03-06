@@ -12,18 +12,17 @@ import { TemperatureScreen } from "./src/screens/TemperatureScreen";
 import { appStyles } from "./src/styles";
 import { CaptureResponse, DraftLot, TabKey } from "./src/types";
 
-const TABS: Array<{ key: TabKey; label: string }> = [
-  { key: "capture", label: "Capture" },
-  { key: "drafts", label: "Draft" },
-  { key: "lifecycle", label: "Lifecycle" },
-  { key: "temperatures", label: "Temperatures" },
-  { key: "reports", label: "Reports" },
+const TABS: Array<{ key: TabKey; icon: string; label: string }> = [
+  { key: "camera", icon: "📷", label: "Camera" },
+  { key: "dashboard", icon: "🍽️", label: "Dashboard" },
+  { key: "lifecycle", icon: "🔁", label: "Lifecycle" },
+  { key: "temperatures", icon: "🌡️", label: "Temperature" },
+  { key: "settings", icon: "⚙️", label: "Parametri" },
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabKey>("capture");
+  const [activeTab, setActiveTab] = useState<TabKey>("camera");
   const [siteCode, setSiteCode] = useState("MAIN");
-  const [supplierName, setSupplierName] = useState("");
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
@@ -69,13 +68,13 @@ export default function App() {
     setError("");
     setDrafts([]);
     setCaptureResult(null);
-    setActiveTab("capture");
+    setActiveTab("camera");
   }
 
   return (
     <SafeAreaView style={appStyles.safe}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={appStyles.container}>
+      <ScrollView contentContainerStyle={[appStyles.container, token ? { paddingBottom: 112 } : undefined]}>
         {!token ? (
           <>
             <Text style={appStyles.title}>Traceability Mobile</Text>
@@ -89,42 +88,15 @@ export default function App() {
               onLogin={login}
             />
           </>
-        ) : (
-          <View style={appStyles.card}>
-            <Text style={appStyles.sectionTitle}>Sessione attiva</Text>
-            <Text style={appStyles.tokenPreview}>Utente: {username}</Text>
-            <Text style={appStyles.tokenPreview}>Site: {siteCode}</Text>
-            <Pressable style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]} onPress={logout}>
-              <Text style={appStyles.buttonSecondaryText}>Logout</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {token ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={appStyles.tabsRow}>
-            {TABS.map((tab) => (
-              <Pressable
-                key={tab.key}
-                style={({ pressed }) => [
-                  appStyles.tabButton,
-                  activeTab === tab.key ? appStyles.tabButtonActive : undefined,
-                  pressed ? appStyles.tabButtonPressed : undefined,
-                ]}
-                onPress={() => setActiveTab(tab.key)}
-              >
-                <Text style={[appStyles.tabText, activeTab === tab.key ? appStyles.tabTextActive : undefined]}>{tab.label}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
         ) : null}
 
-        {token && activeTab === "capture" ? (
+        {token && activeTab === "camera" ? (
           <CaptureScreen
             token={token}
             siteCode={siteCode}
             setSiteCode={setSiteCode}
-            supplierName={supplierName}
-            setSupplierName={setSupplierName}
+            supplierName=""
+            setSupplierName={() => {}}
             loading={loading}
             setLoading={setLoading}
             captureResult={captureResult}
@@ -134,17 +106,47 @@ export default function App() {
           />
         ) : null}
 
-        {token && activeTab === "drafts" ? (
-          <DraftsScreen token={token} drafts={drafts} setError={setError} refreshDrafts={refreshDrafts} />
+        {token && activeTab === "dashboard" ? (
+          <>
+            <ReportsScreen siteCode={siteCode} token={token} />
+            <DraftsScreen token={token} drafts={drafts} setError={setError} refreshDrafts={refreshDrafts} />
+          </>
         ) : null}
 
         {token && activeTab === "lifecycle" ? <LifecycleScreen token={token} setError={setError} /> : null}
         {token && activeTab === "temperatures" ? (
           <TemperatureScreen token={token} siteCode={siteCode} setSiteCode={setSiteCode} setError={setError} />
         ) : null}
-        {token && activeTab === "reports" ? <ReportsScreen siteCode={siteCode} token={token} /> : null}
+        {token && activeTab === "settings" ? (
+          <View style={appStyles.card}>
+            <Text style={appStyles.sectionTitle}>Parametri</Text>
+            <Text style={appStyles.tokenPreview}>Utente: {username}</Text>
+            <Text style={appStyles.tokenPreview}>Site attivo: {siteCode}</Text>
+            <Pressable style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]} onPress={logout}>
+              <Text style={appStyles.buttonSecondaryText}>Logout</Text>
+            </Pressable>
+          </View>
+        ) : null}
         {error ? <Text style={appStyles.error}>{error}</Text> : null}
       </ScrollView>
+      {token ? (
+        <View style={appStyles.bottomNav}>
+          {TABS.map((tab) => (
+            <Pressable
+              key={tab.key}
+              style={({ pressed }) => [
+                appStyles.bottomNavItem,
+                activeTab === tab.key ? appStyles.bottomNavItemActive : undefined,
+                pressed ? appStyles.tabButtonPressed : undefined,
+              ]}
+              onPress={() => setActiveTab(tab.key)}
+            >
+              <Text style={[appStyles.bottomNavIcon, activeTab === tab.key ? appStyles.bottomNavIconActive : undefined]}>{tab.icon}</Text>
+              <Text style={[appStyles.bottomNavText, activeTab === tab.key ? appStyles.bottomNavTextActive : undefined]}>{tab.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }

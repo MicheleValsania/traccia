@@ -144,4 +144,4 @@ export type MeResponse = {
   memberships: Array<{ site_code: string; site_name: string; role: string }>;
 };
 
-export type TabKey = "capture" | "drafts" | "lifecycle" | "temperatures" | "reports";
+export type TabKey = "camera" | "dashboard" | "lifecycle" | "temperatures" | "settings";
