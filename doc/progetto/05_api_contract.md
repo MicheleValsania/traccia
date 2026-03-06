@@ -110,6 +110,32 @@ Reports
 
 - `GET /api/reports/lots.csv?site_code=TOURNELS01&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD`
 - `GET /api/reports/lots.pdf?site_code=TOURNELS01&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD`
+- `GET /api/reports/temperatures.csv?site_code=TOURNELS01[&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD][&sector_id=<uuid>]`
+  - include anche:
+    - `source`
+    - `manual_deviation_reason`
+    - `corrective_action`
+
+Temperature
+
+- `POST /api/temperatures/capture-preview`
+- `POST /api/temperatures/confirm`
+- `GET /api/temperatures?site_code=TOURNELS01&limit=20`
+
+Request body (`/api/temperatures/confirm`) - supporta OCR e manuale:
+
+```json
+{
+  "site_code": "TOURNELS01",
+  "cold_point_id": "optional-uuid",
+  "device_label": "Frigo 1",
+  "device_type": "FRIDGE",
+  "confirmed_temperature_celsius": "4.00",
+  "source": "OCR_PHOTO_CONFIRMED|MANUAL_PRESET|MANUAL_OUT_OF_RANGE",
+  "manual_deviation_reason": "optional",
+  "corrective_action": "optional"
+}
+```
 
 Operational rule
 

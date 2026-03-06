@@ -64,6 +64,8 @@ Note operative:
 - `GET/POST /api/temperature-routes/steps`
 - `GET /api/temperature-routes/{route_id}/sequence`
 - `POST /api/temperatures/capture` (OCR temperatura da foto, senza persistenza immagine)
+- `POST /api/temperatures/capture-preview` (anteprima OCR, nessuna persistenza immagine)
+- `POST /api/temperatures/confirm` (conferma OCR o inserimento manuale)
 - `GET /api/temperatures?site_code=PARIS01&limit=20`
 - `GET /api/lots/drafts?site_code=PARIS01`
 - `POST /api/lots/{lot_id}/validate`
@@ -151,16 +153,34 @@ EXPO_PUBLIC_API_BASE=http://<IP_DEL_TUO_PC>:8000
 Nota: `EXPO_PUBLIC_API_BASE` puo essere con o senza `/api`, l'app normalizza automaticamente.
 Nota sicurezza: chiavi API sensibili vanno solo in `backend/.env`, non in `mobile/.env`.
 
-### Flusso UI implementato
+### Flusso UI implementato (mobile)
 
 - Login token
-- Schermata capture con due modalita:
+- Bottom navigation con icone: `Camera`, `Dashboard`, `Lifecycle`, `Temperature`, `Parametri`
+- Schermata camera con due modalita:
   - `Modalita camera` (default): priorita velocita operativa, validazione differita
   - `Modalita flusso completo`: visualizzazione immediata del draft con OCR/warning
 - Scatto foto etichetta e invio a backend
 - Visualizzazione risultato OCR + suggerimenti prodotto top-3
-- Lista draft da convalidare
-- Apertura report CSV/PDF
+- Dashboard con: lista alert, report CSV/PDF, lista draft da convalidare
+- Temperature:
+  - scatto singolo OCR
+  - sequenza per punti freddo
+  - manuale con preset (`FRIDGE/COLD_ROOM: 0..10`, `FREEZER: -21..-15`)
+  - manuale fuori range con `motivo scarto` + `intervento`
+
+### Stato dati estratti (coerenza con flusso cucina)
+
+Da foto etichetta OCR oggi vengono estratti:
+- `supplier_lot_code`
+- `dlc_date`
+- `weight`
+- `product_guess`
+- warning qualità (`ocr_warnings`)
+
+Nota operativa:
+- `supplier_name` in capture resta opzionale ma attualmente non viene richiesto in UI mobile.
+- Per il flusso lifecycle "umano" (ricerca per prodotto/fornitore/data/quantita) serve un endpoint dedicato di ricerca lotti attivi: previsto, non ancora implementato.
 
 ### Struttura mobile (refactor componenti)
 
