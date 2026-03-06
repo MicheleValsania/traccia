@@ -1,12 +1,11 @@
-import * as ImagePicker from "expo-image-picker";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import React from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { captureLabelPhoto } from "../api";
+import { WarningList } from "../components/WarningList";
 import { appStyles } from "../styles";
 import { CaptureResponse } from "../types";
-import { WarningList } from "../components/WarningList";
 
 type Props = {
   token: string;
@@ -35,11 +34,17 @@ export function CaptureScreen(props: Props) {
   const [uploadedShots, setUploadedShots] = React.useState(0);
   const [failedShots, setFailedShots] = React.useState(0);
   const [pendingUploads, setPendingUploads] = React.useState(0);
-  const [cameraOpen, setCameraOpen] = React.useState(false);
   const [takingShot, setTakingShot] = React.useState(false);
   const cameraRef = React.useRef<CameraView | null>(null);
   const uploadQueueRef = React.useRef(Promise.resolve());
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+
+  React.useEffect(() => {
+    if (!cameraPermission) return;
+    if (!cameraPermission.granted) {
+      void requestCameraPermission();
+    }
+  }, [cameraPermission?.granted]);
 
   async function submitPickedAsset(
     asset: UploadAsset,
@@ -82,28 +87,17 @@ export function CaptureScreen(props: Props) {
       });
   }
 
-  async function openContinuousCameraSession() {
-    props.setError("");
-    if (!cameraPermission?.granted) {
-      const permissionResult = await requestCameraPermission();
-      if (!permissionResult.granted) {
-        props.setError("Permesso camera negato.");
-        return;
-      }
-    }
-    setSessionShots(0);
-    setUploadedShots(0);
-    setFailedShots(0);
-    setPendingUploads(0);
-    props.setCaptureResult(null);
-    setCameraOpen(true);
-  }
-
-  async function takeContinuousShot() {
-    if (!cameraRef.current || takingShot) {
+  async function takeShot() {
+    if (!cameraRef.current || takingShot || props.loading) {
       return;
     }
+    if (!cameraPermission?.granted) {
+      props.setError("Permesso camera non disponibile.");
+      return;
+    }
+
     setTakingShot(true);
+    props.setError("");
     try {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.6,
@@ -114,80 +108,41 @@ export function CaptureScreen(props: Props) {
         return;
       }
       setSessionShots((prev) => prev + 1);
-      queueShotUpload({
-        base64: photo.base64,
-        fileName: `capture_${Date.now()}.jpg`,
-        mimeType: "image/jpeg",
-      });
+
+      if (mode === "camera_only") {
+        queueShotUpload({
+          base64: photo.base64,
+          fileName: `capture_${Date.now()}.jpg`,
+          mimeType: "image/jpeg",
+        });
+        return;
+      }
+
+      props.setLoading(true);
+      await submitPickedAsset(
+        {
+          base64: photo.base64,
+          fileName: `capture_${Date.now()}.jpg`,
+          mimeType: "image/jpeg",
+        },
+        { showResult: true, refreshDrafts: true },
+      );
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore scatto.");
     } finally {
+      props.setLoading(false);
       setTakingShot(false);
     }
   }
 
-  async function closeContinuousCameraSession() {
-    setCameraOpen(false);
-    if (pendingUploads > 0) {
-      props.setError("Upload in corso: attendo completamento coda...");
-    }
-    await uploadQueueRef.current;
-    await props.refreshDrafts();
-    props.setError("");
-  }
-
-  async function captureLabel() {
+  async function syncQueue() {
     props.setError("");
     props.setLoading(true);
     try {
-      if (mode === "camera_only") {
-        await openContinuousCameraSession();
-        return;
-      }
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        props.setError("Camera non disponibile su emulatore. Usa il fallback galleria.");
-        return;
-      }
-      const shot = await ImagePicker.launchCameraAsync({
-        quality: 0.6,
-        base64: true,
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      });
-      if (shot.canceled || !shot.assets[0]?.base64) {
-        return;
-      }
-      await submitPickedAsset(shot.assets[0], { showResult: true, refreshDrafts: true });
+      await uploadQueueRef.current;
+      await props.refreshDrafts();
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore sconosciuto.");
-    } finally {
-      props.setLoading(false);
-    }
-  }
-
-  async function pickFromGallery() {
-    props.setError("");
-    props.setLoading(true);
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        props.setError("Permesso galleria negato.");
-        return;
-      }
-      const picked = await ImagePicker.launchImageLibraryAsync({
-        quality: 0.8,
-        base64: true,
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      });
-      if (picked.canceled || !picked.assets[0]) {
-        return;
-      }
-      await submitPickedAsset(picked.assets[0]);
-      if (mode === "camera_only") {
-        props.setCaptureResult(null);
-      }
-    } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore sconosciuto.");
+      props.setError(e instanceof Error ? e.message : "Errore sincronizzazione.");
     } finally {
       props.setLoading(false);
     }
@@ -196,11 +151,11 @@ export function CaptureScreen(props: Props) {
   return (
     <>
       <View style={appStyles.card}>
-        <Text style={appStyles.label}>Modalità operativa</Text>
         <View style={appStyles.tabsRow}>
           <Pressable
             style={({ pressed }) => [
               appStyles.tabButton,
+              { flex: 1, minWidth: 0 },
               mode === "camera_only" ? appStyles.tabButtonActive : undefined,
               pressed ? appStyles.tabButtonPressed : undefined,
             ]}
@@ -208,12 +163,13 @@ export function CaptureScreen(props: Props) {
             disabled={props.loading}
           >
             <Text style={[appStyles.tabText, mode === "camera_only" ? appStyles.tabTextActive : undefined]}>
-              Modalità camera
+              Modalita camera
             </Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [
               appStyles.tabButton,
+              { flex: 1, minWidth: 0 },
               mode === "full_flow" ? appStyles.tabButtonActive : undefined,
               pressed ? appStyles.tabButtonPressed : undefined,
             ]}
@@ -221,59 +177,51 @@ export function CaptureScreen(props: Props) {
             disabled={props.loading}
           >
             <Text style={[appStyles.tabText, mode === "full_flow" ? appStyles.tabTextActive : undefined]}>
-              Modalità flusso completo
+              Modalita flusso completo
             </Text>
           </Pressable>
         </View>
-        <Text style={appStyles.tokenPreview}>
-          {mode === "camera_only"
-            ? "Default consigliato: scatti rapidi, elaborazione in backend, validazione dopo."
-            : "Flusso completo: scatto + estrazione + validazione immediata del draft."}
-        </Text>
-        {mode === "camera_only" ? (
-          <Text style={appStyles.success}>Scatti inviati in sessione: {sessionShots}</Text>
-        ) : null}
-        <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={captureLabel} disabled={props.loading || !props.token}>
-          <Text style={appStyles.buttonText}>
-            {props.loading
-              ? "Elaborazione..."
-              : mode === "camera_only"
-                ? "Apri camera continua"
-                : "Apri camera (estrazione immediata)"}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
-          onPress={pickFromGallery}
-          disabled={props.loading || !props.token}
-        >
-          <Text style={appStyles.buttonSecondaryText}>
-            {props.loading ? "Elaborazione..." : "Fallback: scegli dalla galleria"}
-          </Text>
-        </Pressable>
-      </View>
 
-      {mode === "camera_only" && cameraOpen ? (
-        <View style={appStyles.card}>
-          <Text style={appStyles.sectionTitle}>Sessione camera continua</Text>
-          <CameraView ref={cameraRef} style={appStyles.cameraPreview} facing="back" />
-          <Text style={appStyles.tokenPreview}>
-            Scatti: {sessionShots} | Caricati: {uploadedShots} | In coda: {pendingUploads} | Errori: {failedShots}
-          </Text>
-          <View style={appStyles.tabsRow}>
-            <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={takeContinuousShot} disabled={takingShot || props.loading}>
-              <Text style={appStyles.buttonText}>{takingShot ? "Scatto..." : "Scatta"}</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
-              onPress={closeContinuousCameraSession}
-              disabled={takingShot}
-            >
-              <Text style={appStyles.buttonSecondaryText}>Fine sessione</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
+        {cameraPermission?.granted ? (
+          <>
+            <CameraView ref={cameraRef} style={appStyles.cameraPreview} facing="back" />
+            <Text style={appStyles.tokenPreview}>
+              Scatti: {sessionShots} | Caricati: {uploadedShots} | In coda: {pendingUploads} | Errori: {failedShots}
+            </Text>
+            <View style={appStyles.tabsRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  appStyles.button,
+                  { flex: 1 },
+                  pressed ? appStyles.buttonPressed : undefined,
+                ]}
+                onPress={takeShot}
+                disabled={takingShot || props.loading || !props.token}
+              >
+                <Text style={appStyles.buttonText}>{takingShot ? "Scatto..." : "Scatta"}</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  appStyles.buttonSecondary,
+                  { flex: 1, marginTop: 8 },
+                  pressed ? appStyles.buttonSecondaryPressed : undefined,
+                ]}
+                onPress={syncQueue}
+                disabled={takingShot || props.loading || !props.token}
+              >
+                <Text style={appStyles.buttonSecondaryText}>{props.loading ? "Sincronizzo..." : "Sincronizza"}</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <Pressable
+            style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]}
+            onPress={() => void requestCameraPermission()}
+          >
+            <Text style={appStyles.buttonText}>Abilita camera</Text>
+          </Pressable>
+        )}
+      </View>
 
       {props.captureResult && mode === "full_flow" ? (
         <View style={appStyles.card}>
