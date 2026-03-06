@@ -268,13 +268,19 @@ export function TemperatureScreen(props: Props) {
       setLastCapture(saved);
       setPendingPreview(null);
       setConfirmTempInput("");
-      await refreshReadings();
-      if (mode === "sequence" && sequenceCameraOpen) {
-        if (sequenceStepIndex >= sequencePoints.length - 1) {
+      if (mode === "sequence") {
+        const isLastStep = sequenceStepIndex >= sequencePoints.length - 1;
+        if (isLastStep) {
           setInfoMessage("Sequenza completata.");
         } else {
           setSequenceStepIndex((prev) => prev + 1);
+          setInfoMessage("Rilevazione salvata. Procedi con il prossimo punto.");
         }
+      }
+      try {
+        await refreshReadings();
+      } catch {
+        // Non bloccare la sequenza se il refresh storico fallisce.
       }
     } catch (e) {
       props.setError(e instanceof Error ? e.message : "Errore conferma operatore.");
