@@ -1,3 +1,4 @@
+import csv
 import hashlib
 import json
 import logging
@@ -9,6 +10,7 @@ from datetime import date, datetime
 from io import BytesIO, StringIO
 from typing import Any
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Max, QuerySet
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2.credentials import Credentials as UserCredentials
@@ -666,14 +668,50 @@ def lots_to_pdf(queryset: QuerySet[Lot]) -> bytes:
 
 def temperatures_register_to_csv(queryset: QuerySet[TemperatureReading]) -> str:
     output = StringIO()
-    output.write("register_name,sector_name,cold_point_code,date,time,reference_temperature_celsius,measured_temperature_celsius\n")
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "register_name",
+            "sector_name",
+            "cold_point_code",
+            "date",
+            "time",
+            "reference_temperature_celsius",
+            "measured_temperature_celsius",
+        ]
+    )
     for reading in queryset:
-        observed = timezone.localtime(reading.observed_at) if timezone.is_aware(reading.observed_at) else reading.observed_at
-        cold_point_code = reading.cold_point.name if reading.cold_point else reading.device_label
-        sector_name = reading.cold_point.sector.name if reading.cold_point else ""
-        register_name = reading.register.name if reading.register else sector_name
-        output.write(
-            f"{register_name},{sector_name},{cold_point_code},{observed.date().isoformat()},"
-            f"{observed.time().strftime('%H:%M:%S')},{reading.reference_temperature_celsius or ''},{reading.temperature_celsius}\n"
+        observed_raw = reading.observed_at
+        observed = timezone.localtime(observed_raw) if timezone.is_aware(observed_raw) else observed_raw
+
+        try:
+            cold_point = reading.cold_point
+        except ObjectDoesNotExist:
+            cold_point = None
+
+        try:
+            register = reading.register
+        except ObjectDoesNotExist:
+            register = None
+
+        cold_point_code = (cold_point.name if cold_point else "") or reading.device_label or ""
+        sector_name = ""
+        if cold_point:
+            try:
+                sector_name = cold_point.sector.name
+            except ObjectDoesNotExist:
+                sector_name = ""
+        register_name = (register.name if register else "") or sector_name
+
+        writer.writerow(
+            [
+                register_name,
+                sector_name,
+                cold_point_code,
+                observed.date().isoformat(),
+                observed.time().strftime("%H:%M:%S"),
+                reading.reference_temperature_celsius or "",
+                reading.temperature_celsius,
+            ]
         )
     return output.getvalue()
