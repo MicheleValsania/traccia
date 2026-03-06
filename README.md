@@ -91,6 +91,7 @@ Note operative:
 - Upload Drive e OCR Claude hanno fallback stub in `backend/core/services.py`
 - Se abiliti env di integrazione, vengono usati provider reali:
   - `GOOGLE_DRIVE_ENABLED=1`
+  - `GOOGLE_DRIVE_STRICT=1` (consigliato in produzione: errore esplicito se upload fallisce)
   - `GOOGLE_DRIVE_OAUTH_CLIENT_ID=<client-id>`
   - `GOOGLE_DRIVE_OAUTH_CLIENT_SECRET=<client-secret>`
   - `GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN=<refresh-token>`

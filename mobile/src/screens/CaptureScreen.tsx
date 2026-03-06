@@ -63,6 +63,11 @@ export function CaptureScreen(props: Props) {
       fileMimeType: asset.mimeType || "image/jpeg",
       fileBase64,
     });
+    const provider = String(body.asset?.drive_provider || "");
+    const fallbackReason = String(body.asset?.drive_fallback_reason || "");
+    if (provider.toLowerCase() === "stub" || fallbackReason) {
+      throw new Error(`Upload Drive non riuscito (${fallbackReason || "fallback_stub"})`);
+    }
     if (options?.showResult ?? true) {
       props.setCaptureResult(body);
     }
@@ -78,8 +83,9 @@ export function CaptureScreen(props: Props) {
         try {
           await submitPickedAsset(asset, { showResult: false, refreshDrafts: false });
           setUploadedShots((prev) => prev + 1);
-        } catch {
+        } catch (e) {
           setFailedShots((prev) => prev + 1);
+          props.setError(e instanceof Error ? e.message : "Upload Drive fallito.");
         }
       })
       .finally(() => {

@@ -222,6 +222,7 @@ def upload_to_drive_stub(file_name: str, binary: bytes, fallback_reason: str = "
 def upload_to_drive(file_name: str, binary: bytes, mime_type: str = "image/jpeg") -> dict[str, str]:
     if os.getenv("GOOGLE_DRIVE_ENABLED", "0") != "1":
         return upload_to_drive_stub(file_name=file_name, binary=binary, fallback_reason="drive_disabled")
+    strict_mode = os.getenv("GOOGLE_DRIVE_STRICT", "0") == "1"
 
     oauth_client_id = os.getenv("GOOGLE_DRIVE_OAUTH_CLIENT_ID", "")
     oauth_client_secret = os.getenv("GOOGLE_DRIVE_OAUTH_CLIENT_SECRET", "")
@@ -234,6 +235,8 @@ def upload_to_drive(file_name: str, binary: bytes, mime_type: str = "image/jpeg"
     has_oauth = bool(oauth_client_id and oauth_client_secret and oauth_refresh_token)
     has_service_account = bool(service_account_path or service_account_json)
     if (not has_oauth and not has_service_account) or not folder_id:
+        if strict_mode:
+            raise RuntimeError("missing_drive_config")
         return upload_to_drive_stub(file_name=file_name, binary=binary, fallback_reason="missing_drive_config")
 
     attempts = int(os.getenv("GOOGLE_DRIVE_RETRY_ATTEMPTS", "3"))
@@ -281,6 +284,8 @@ def upload_to_drive(file_name: str, binary: bytes, mime_type: str = "image/jpeg"
         created, provider = _retry(_op, attempts=attempts, base_sleep_s=backoff)
     except Exception as exc:
         logger.exception("Drive upload fallback to stub. file_name=%s error=%s", file_name, exc)
+        if strict_mode:
+            raise RuntimeError(f"drive_upload_failed:{exc}") from exc
         return upload_to_drive_stub(file_name=file_name, binary=binary, fallback_reason=str(exc)[:400])
 
     digest = hashlib.sha256(binary).hexdigest()

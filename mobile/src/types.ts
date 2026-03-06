@@ -11,7 +11,12 @@ export type CaptureResponse = {
   ocr_result: Record<string, unknown>;
   ocr_warnings: OcrWarning[];
   product_suggestions: Array<{ id: string; title: string; category: string }>;
-  asset: { drive_file_id: string; drive_link: string };
+  asset: {
+    drive_file_id: string;
+    drive_link: string;
+    drive_provider?: string;
+    drive_fallback_reason?: string;
+  };
 };
 
 export type DraftLot = {

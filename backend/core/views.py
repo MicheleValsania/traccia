@@ -98,6 +98,7 @@ def debug_env(request):
         "ANTHROPIC_API_KEY": "SET" if os.getenv("ANTHROPIC_API_KEY") else "NOT SET",
         "ANTHROPIC_MODEL": os.getenv("ANTHROPIC_MODEL", "NOT SET"),
         "GOOGLE_DRIVE_ENABLED": os.getenv("GOOGLE_DRIVE_ENABLED", "NOT SET"),
+        "GOOGLE_DRIVE_STRICT": os.getenv("GOOGLE_DRIVE_STRICT", "NOT SET"),
         "GOOGLE_DRIVE_FOLDER_ID": os.getenv("GOOGLE_DRIVE_FOLDER_ID", "NOT SET"),
         "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON": "SET" if os.getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON") else "NOT SET",
         "GOOGLE_DRIVE_OAUTH_CLIENT_ID": "SET" if os.getenv("GOOGLE_DRIVE_OAUTH_CLIENT_ID") else "NOT SET",
@@ -252,7 +253,13 @@ class CaptureLabelView(APIView):
             return Response({"detail": "file_b64 is not valid base64."}, status=status.HTTP_400_BAD_REQUEST)
 
         mime_type = data.get("file_mime_type", "image/jpeg") or "image/jpeg"
-        drive = upload_to_drive(file_name=data["file_name"], binary=binary, mime_type=mime_type)
+        try:
+            drive = upload_to_drive(file_name=data["file_name"], binary=binary, mime_type=mime_type)
+        except Exception as exc:
+            return Response(
+                {"detail": "Drive upload failed.", "error": str(exc)[:300]},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         ocr_raw = run_label_ocr(file_name=data["file_name"], binary=binary, mime_type=mime_type)
         ocr = OcrResultSerializer(data=ocr_raw)
         ocr.is_valid(raise_exception=True)
