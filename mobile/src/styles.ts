@@ -2,7 +2,7 @@ import { Platform, StyleSheet } from "react-native";
 
 export const appStyles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#f5f7f8" },
-  container: { padding: 16, gap: 12, paddingBottom: 36 },
+  container: { padding: 16, gap: 12, paddingBottom: 56 },
   title: { fontSize: 24, fontWeight: "700", color: "#0f2e2e", fontFamily: Platform.select({ ios: "System", android: "sans-serif", default: "System" }) },
   subtitle: { fontSize: 12, color: "#496464", fontFamily: Platform.select({ ios: "System", android: "sans-serif", default: "System" }) },
   tabsRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginBottom: 6 },
@@ -82,7 +82,7 @@ export const appStyles = StyleSheet.create({
     position: "absolute",
     left: 12,
     right: 12,
-    bottom: 8,
+    bottom: Platform.select({ android: 56, ios: 10, default: 16 }),
     alignItems: "center",
   },
   bottomNavHint: {

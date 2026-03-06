@@ -88,7 +88,7 @@ export default function App() {
   return (
     <SafeAreaView style={appStyles.safe}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={[appStyles.container, token ? { paddingBottom: 112 } : undefined]}>
+      <ScrollView contentContainerStyle={[appStyles.container, token ? { paddingBottom: 176 } : undefined]}>
         {!token ? (
           <>
             <Text style={appStyles.title}>Traceability Mobile</Text>
