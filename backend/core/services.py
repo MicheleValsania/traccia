@@ -679,6 +679,9 @@ def temperatures_register_to_csv(queryset: QuerySet[TemperatureReading]) -> str:
             "time",
             "reference_temperature_celsius",
             "measured_temperature_celsius",
+            "source",
+            "manual_deviation_reason",
+            "corrective_action",
         ]
     )
     for reading in queryset:
@@ -703,6 +706,9 @@ def temperatures_register_to_csv(queryset: QuerySet[TemperatureReading]) -> str:
             except ObjectDoesNotExist:
                 sector_name = ""
         register_name = (register.name if register else "") or sector_name
+        payload = reading.ocr_payload if isinstance(reading.ocr_payload, dict) else {}
+        deviation_reason = str(payload.get("manual_deviation_reason", "") or "")
+        corrective_action = str(payload.get("corrective_action", "") or "")
 
         writer.writerow(
             [
@@ -713,6 +719,9 @@ def temperatures_register_to_csv(queryset: QuerySet[TemperatureReading]) -> str:
                 observed.time().strftime("%H:%M:%S"),
                 reading.reference_temperature_celsius or "",
                 reading.temperature_celsius,
+                reading.source,
+                deviation_reason,
+                corrective_action,
             ]
         )
     return output.getvalue()

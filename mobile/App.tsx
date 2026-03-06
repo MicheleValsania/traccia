@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 
 import { fetchDrafts, fetchMe, loginToken } from "./src/api";
@@ -22,6 +22,7 @@ const TABS: Array<{ key: TabKey; icon: string; label: string }> = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>("camera");
+  const [navHint, setNavHint] = useState("");
   const [siteCode, setSiteCode] = useState("MAIN");
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
@@ -30,6 +31,13 @@ export default function App() {
   const [drafts, setDrafts] = useState<DraftLot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    };
+  }, []);
 
   async function login() {
     setError("");
@@ -69,6 +77,12 @@ export default function App() {
     setDrafts([]);
     setCaptureResult(null);
     setActiveTab("camera");
+  }
+
+  function showNavHint(label: string) {
+    setNavHint(label);
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    hintTimerRef.current = setTimeout(() => setNavHint(""), 900);
   }
 
   return (
@@ -130,7 +144,9 @@ export default function App() {
         {error ? <Text style={appStyles.error}>{error}</Text> : null}
       </ScrollView>
       {token ? (
-        <View style={appStyles.bottomNav}>
+        <View style={appStyles.bottomNavWrap}>
+          {navHint ? <Text style={appStyles.bottomNavHint}>{navHint}</Text> : null}
+          <View style={appStyles.bottomNav}>
           {TABS.map((tab) => (
             <Pressable
               key={tab.key}
@@ -139,12 +155,16 @@ export default function App() {
                 activeTab === tab.key ? appStyles.bottomNavItemActive : undefined,
                 pressed ? appStyles.tabButtonPressed : undefined,
               ]}
-              onPress={() => setActiveTab(tab.key)}
+              onPressIn={() => showNavHint(tab.label)}
+              onPress={() => {
+                setActiveTab(tab.key);
+                showNavHint(tab.label);
+              }}
             >
               <Text style={[appStyles.bottomNavIcon, activeTab === tab.key ? appStyles.bottomNavIconActive : undefined]}>{tab.icon}</Text>
-              <Text style={[appStyles.bottomNavText, activeTab === tab.key ? appStyles.bottomNavTextActive : undefined]}>{tab.label}</Text>
             </Pressable>
           ))}
+          </View>
         </View>
       ) : null}
     </SafeAreaView>
