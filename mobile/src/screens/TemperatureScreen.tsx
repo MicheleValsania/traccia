@@ -46,7 +46,6 @@ export function TemperatureScreen(props: Props) {
   const [lastCapture, setLastCapture] = React.useState<TemperatureCaptureResponse | null>(null);
   const [pendingPreview, setPendingPreview] = React.useState<TemperaturePreviewResponse | null>(null);
   const [confirmTempInput, setConfirmTempInput] = React.useState("");
-  const [pendingPoint, setPendingPoint] = React.useState<ColdPoint | null>(null);
   const [infoMessage, setInfoMessage] = React.useState("");
 
   const [sequenceCameraOpen, setSequenceCameraOpen] = React.useState(false);
@@ -238,17 +237,17 @@ export function TemperatureScreen(props: Props) {
       deviceType: point.device_type,
     });
     setPendingPreview(preview);
-    setPendingPoint(point);
     setConfirmTempInput(String(preview.preview.suggested_temperature_celsius));
   }
 
   async function confirmPreview() {
-    if (!pendingPreview || !pendingPoint) {
+    if (!pendingPreview) {
       props.setError("Nessuna anteprima OCR da confermare.");
       return;
     }
     const normalized = confirmTempInput.trim().replace(",", ".");
-    if (!normalized) {
+    const parsed = Number(normalized);
+    if (!normalized || Number.isNaN(parsed)) {
       props.setError("Inserisci la temperatura confermata.");
       return;
     }
@@ -256,10 +255,10 @@ export function TemperatureScreen(props: Props) {
       const saved = await confirmTemperatureReading({
         token: props.token,
         siteCode: props.siteCode,
-        coldPointId: pendingPoint.id,
+        coldPointId: pendingPreview.preview.cold_point_id || undefined,
         deviceLabel: pendingPreview.preview.device_label,
         deviceType: pendingPreview.preview.device_type,
-        confirmedTemperatureCelsius: normalized,
+        confirmedTemperatureCelsius: parsed.toFixed(2),
         observedAt: pendingPreview.preview.observed_at,
         ocrProvider: pendingPreview.preview.ocr_provider,
         ocrConfidence: pendingPreview.preview.ocr_confidence ?? undefined,
@@ -268,7 +267,6 @@ export function TemperatureScreen(props: Props) {
       });
       setLastCapture(saved);
       setPendingPreview(null);
-      setPendingPoint(null);
       setConfirmTempInput("");
       await refreshReadings();
       if (mode === "sequence" && sequenceCameraOpen) {
@@ -553,7 +551,6 @@ export function TemperatureScreen(props: Props) {
                   style={appStyles.buttonSecondary}
                   onPress={() => {
                     setPendingPreview(null);
-                    setPendingPoint(null);
                     setConfirmTempInput("");
                   }}
                 >

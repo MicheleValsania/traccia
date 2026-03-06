@@ -714,10 +714,12 @@ class TemperatureConfirmView(APIView):
             return auth_error
 
         cold_point = None
+        register = None
         if data.get("cold_point_id"):
             cold_point = ColdPoint.objects.select_related("sector").filter(id=data["cold_point_id"], site=site).first()
             if not cold_point:
                 return Response({"detail": "Unknown cold_point_id for site."}, status=status.HTTP_400_BAD_REQUEST)
+            register = TemperatureRegister.objects.filter(sector=cold_point.sector).first()
 
         device_type = data.get("device_type") or (cold_point.device_type if cold_point else TemperatureDeviceType.OTHER)
         if device_type not in TemperatureDeviceType.values:

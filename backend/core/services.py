@@ -469,18 +469,38 @@ def run_temperature_ocr(file_name: str, binary: bytes, mime_type: str = "image/j
     backoff = float(os.getenv("CLAUDE_RETRY_BASE_SLEEP_S", "0.8"))
 
     try:
-        client = Anthropic(api_key=api_key)
-        encoded = b64encode(binary).decode("utf-8")
-        prompt = (
-            "You are extracting a cold-chain temperature reading from a fridge/freezer display photo. "
-            'Return strict JSON only with keys: {"device_type":"","device_label":"","temperature_celsius":""}. '
-            "Rules: "
-            "1) device_type must be one of FRIDGE, FREEZER, COLD_ROOM, OTHER. "
-            "2) temperature_celsius must be numeric in Celsius, with sign if negative. "
-            "3) If unreadable, return empty string for temperature_celsius. "
-            "4) Do not add commentary or markdown."
-        )
+    client = Anthropic(api_key=api_key)
+    encoded = b64encode(binary).decode("utf-8")
 
+    system_prompt = (
+        "You are a precise OCR system specialized in reading temperature displays on refrigeration units. "
+        "Your task is to extract the temperature from a digital fridge/freezer display (7-segment LCD or similar). "
+        "\n\n"
+        "ANALYSIS PROCESS (internal, do not output):\n"
+        "1. Identify each digit position on the display\n"
+        "2. Count lit segments per digit: 0=6seg, 1=2seg, 2=5seg, 3=5seg, 4=4seg, 5=5seg, 6=6seg, 7=3seg, 8=7seg, 9=6seg\n"
+        "3. For ambiguous digits, check the distinguishing segment:\n"
+        "   - 3 vs 9 → bottom-left segment (9 has it, 3 doesn't)\n"
+        "   - 6 vs 8 → top segment (8 has it, 6 doesn't)\n"
+        "   - 0 vs 8 → middle segment (8 has it, 0 doesn't)\n"
+        "   - 1 vs 7 → top-horizontal segment (7 has it, 1 doesn't)\n"
+        "   - 5 vs 6 → top segment (6 has it, 5 doesn't)\n"
+        "   - S vs 5 → context-dependent, use temperature range to decide\n"
+        "4. Validate: fridge range -5/+10°C, freezer range -40/-10°C\n"
+        "\n\n"
+        "EXTRACTION RULES:\n"
+        "1. Read only the large numeric LCD digits representing temperature\n"
+        "2. Ignore printed labels: FRIDGE, FREEZER, MAX, MIN, ALARM, logos\n"
+        "3. Keep sign if present; output Celsius number only (e.g. -18.4, 3.0)\n"
+        "4. Do not invent digits — if decimal point or sign is not clearly visible, return empty string\n"
+        "5. If multiple numbers visible, choose the one attached to the temperature symbol/zone\n"
+        "6. Prefer one decimal when shown; do not append extra decimals\n"
+        "7. If readout is uncertain, blurred, occluded, or ambiguous, return empty string\n"
+        "8. device_type must be one of: FRIDGE, FREEZER, COLD_ROOM, OTHER\n"
+        "\n\n"
+        "OUTPUT: Return strict JSON only — no markdown, no extra keys, no commentary:\n"
+        '{"device_type": "", "device_label": "", "temperature_celsius": ""}'
+    )
         def _op():
             return client.messages.create(
                 model=model,
