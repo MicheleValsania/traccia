@@ -269,12 +269,26 @@ export function TemperatureScreen(props: Props) {
       setPendingPreview(null);
       setConfirmTempInput("");
       if (mode === "sequence") {
-        const isLastStep = sequenceStepIndex >= sequencePoints.length - 1;
+        let baseIndex = sequenceStepIndex;
+        const confirmedPointId = pendingPreview.preview.cold_point_id;
+        if (confirmedPointId) {
+          const idxById = sequencePoints.findIndex((p) => p.id === confirmedPointId);
+          if (idxById >= 0) {
+            baseIndex = idxById;
+          }
+        }
+        const nextIndex = baseIndex + 1;
+        const isLastStep = nextIndex >= sequencePoints.length;
         if (isLastStep) {
           setInfoMessage("Sequenza completata.");
         } else {
-          setSequenceStepIndex((prev) => prev + 1);
-          setInfoMessage("Rilevazione salvata. Procedi con il prossimo punto.");
+          const nextPoint = sequencePoints[nextIndex];
+          setSequenceStepIndex(nextIndex);
+          setInfoMessage(
+            nextPoint
+              ? `Rilevazione salvata. Prossimo: ${nextPoint.sort_order}. ${nextPoint.name}`
+              : "Rilevazione salvata. Procedi con il prossimo punto.",
+          );
         }
       }
       try {
