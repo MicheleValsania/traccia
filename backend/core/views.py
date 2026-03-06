@@ -2,6 +2,7 @@ import base64
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import generics, status
@@ -43,6 +44,8 @@ from .serializers import (
     DraftValidationSerializer,
     FicheImportSerializer,
     LotReportFilterSerializer,
+    ActiveLotSearchFilterSerializer,
+    ActiveLotSearchResultSerializer,
     LotTransformSerializer,
     OcrResultSerializer,
     ReconcileIdenticalLotsSerializer,
@@ -823,6 +826,43 @@ class DraftLotListView(generics.ListAPIView):
                 return Lot.objects.none()
             qs = qs.filter(site=site)
         return qs
+
+
+class ActiveLotSearchView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        filters = ActiveLotSearchFilterSerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+        params = filters.validated_data
+
+        site = Site.objects.filter(code=params["site_code"]).first()
+        if not site:
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_site_role(request, site, SITE_READ_ROLES)
+        if auth_error:
+            return auth_error
+
+        qs = Lot.objects.select_related("fiche_product").filter(site=site, status=LotStatus.ACTIVE)
+
+        if params.get("from_date"):
+            qs = qs.filter(received_date__gte=params["from_date"])
+        if params.get("to_date"):
+            qs = qs.filter(received_date__lte=params["to_date"])
+        if params.get("category"):
+            qs = qs.filter(category_snapshot__icontains=params["category"])
+        q_text = str(params.get("q", "") or "").strip()
+        if q_text:
+            qs = qs.filter(
+                Q(internal_lot_code__icontains=q_text)
+                | Q(supplier_name__icontains=q_text)
+                | Q(supplier_lot_code__icontains=q_text)
+                | Q(category_snapshot__icontains=q_text)
+                | Q(fiche_product__title__icontains=q_text)
+            )
+
+        qs = qs.order_by("-received_date", "-updated_at")[: params["limit"]]
+        return Response(ActiveLotSearchResultSerializer(qs, many=True).data, status=status.HTTP_200_OK)
 
 
 class LotValidateView(APIView):

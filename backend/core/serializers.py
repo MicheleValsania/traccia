@@ -347,6 +347,44 @@ class LotReportFilterSerializer(serializers.Serializer):
     category = serializers.CharField(required=False, allow_blank=True)
 
 
+class ActiveLotSearchFilterSerializer(serializers.Serializer):
+    site_code = serializers.CharField()
+    q = serializers.CharField(required=False, allow_blank=True)
+    from_date = serializers.DateField(required=False)
+    to_date = serializers.DateField(required=False)
+    category = serializers.CharField(required=False, allow_blank=True)
+    limit = serializers.IntegerField(required=False, min_value=1, max_value=100, default=30)
+
+
+class ActiveLotSearchResultSerializer(serializers.ModelSerializer):
+    display_product_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Lot
+        fields = [
+            "id",
+            "internal_lot_code",
+            "display_product_name",
+            "supplier_name",
+            "supplier_lot_code",
+            "received_date",
+            "dlc_date",
+            "quantity_value",
+            "quantity_unit",
+            "status",
+            "category_snapshot",
+        ]
+
+    def get_display_product_name(self, obj):
+        if obj.fiche_product and obj.fiche_product.title:
+            return obj.fiche_product.title
+        payload = obj.ai_payload if isinstance(obj.ai_payload, dict) else {}
+        guessed = str(payload.get("product_guess", "") or "").strip()
+        if guessed:
+            return guessed
+        return obj.category_snapshot or "Prodotto non specificato"
+
+
 class OcrResultSerializer(serializers.Serializer):
     supplier_lot_code = serializers.CharField(required=False, allow_blank=True)
     dlc_date = serializers.CharField(required=False, allow_blank=True)

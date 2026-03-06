@@ -1,4 +1,5 @@
 import {
+  ActiveLotSearchItem,
   AlertItem,
   CaptureResponse,
   ColdPoint,
@@ -150,6 +151,30 @@ export async function transformLot(params: {
     throw new Error(details || "Trasformazione fallita.");
   }
   return (await response.json()) as TransformResponse;
+}
+
+export async function fetchActiveLotsSearch(params: {
+  token: string;
+  siteCode: string;
+  q?: string;
+  fromDate?: string;
+  toDate?: string;
+  category?: string;
+  limit?: number;
+}): Promise<ActiveLotSearchItem[]> {
+  const query = new URLSearchParams({ site_code: params.siteCode });
+  if (params.q) query.set("q", params.q);
+  if (params.fromDate) query.set("from_date", params.fromDate);
+  if (params.toDate) query.set("to_date", params.toDate);
+  if (params.category) query.set("category", params.category);
+  query.set("limit", String(params.limit ?? 30));
+
+  const response = await fetch(`${API_BASE}/lots/active-search?${query.toString()}`, withAuth(params.token, { method: "GET" }));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Ricerca lotti attivi fallita.");
+  }
+  return (await response.json()) as ActiveLotSearchItem[];
 }
 
 export function reportCsvUrl(siteCode: string, token: string): string {

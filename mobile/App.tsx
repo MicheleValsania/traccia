@@ -127,7 +127,7 @@ export default function App() {
           </>
         ) : null}
 
-        {token && activeTab === "lifecycle" ? <LifecycleScreen token={token} setError={setError} /> : null}
+        {token && activeTab === "lifecycle" ? <LifecycleScreen token={token} siteCode={siteCode} setError={setError} /> : null}
         {token && activeTab === "temperatures" ? (
           <TemperatureScreen token={token} siteCode={siteCode} setSiteCode={setSiteCode} setError={setError} />
         ) : null}

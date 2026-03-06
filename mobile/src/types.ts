@@ -36,6 +36,20 @@ export type TransformResponse = {
   action: string;
 };
 
+export type ActiveLotSearchItem = {
+  id: string;
+  internal_lot_code: string;
+  display_product_name: string;
+  supplier_name: string;
+  supplier_lot_code: string;
+  received_date: string;
+  dlc_date: string | null;
+  quantity_value: string | null;
+  quantity_unit: string;
+  status: string;
+  category_snapshot: string;
+};
+
 export type AlertItem = {
   id: string;
   lot: string;
