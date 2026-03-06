@@ -469,10 +469,10 @@ def run_temperature_ocr(file_name: str, binary: bytes, mime_type: str = "image/j
     backoff = float(os.getenv("CLAUDE_RETRY_BASE_SLEEP_S", "0.8"))
 
     try:
-    client = Anthropic(api_key=api_key)
-    encoded = b64encode(binary).decode("utf-8")
+        client = Anthropic(api_key=api_key)
+        encoded = b64encode(binary).decode("utf-8")
 
-    system_prompt = (
+        prompt = (
         "You are a precise OCR system specialized in reading temperature displays on refrigeration units. "
         "Your task is to extract the temperature from a digital fridge/freezer display (7-segment LCD or similar). "
         "\n\n"
@@ -500,7 +500,8 @@ def run_temperature_ocr(file_name: str, binary: bytes, mime_type: str = "image/j
         "\n\n"
         "OUTPUT: Return strict JSON only — no markdown, no extra keys, no commentary:\n"
         '{"device_type": "", "device_label": "", "temperature_celsius": ""}'
-    )
+        )
+
         def _op():
             return client.messages.create(
                 model=model,
