@@ -53,6 +53,9 @@ Single app, shared routes:
 4. `/settings`
 5. `/labels` (placeholder in MVP, full flow in phase 2)
 
+Reference:
+- label payload contract: `doc/progetto/14_label_payload_contract.md`
+
 Navigation behavior:
 
 - Desktop: left sidebar

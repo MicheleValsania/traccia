@@ -350,6 +350,53 @@ class LotTransformation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
+class LabelTemplateType(models.TextChoices):
+    RAW_MATERIAL = "RAW_MATERIAL", "RAW_MATERIAL"
+    PREPARATION = "PREPARATION", "PREPARATION"
+    TRANSFORMATION = "TRANSFORMATION", "TRANSFORMATION"
+
+
+class LabelShelfLifeUnit(models.TextChoices):
+    HOURS = "hours", "hours"
+    DAYS = "days", "days"
+    MONTHS = "months", "months"
+
+
+class LabelProfile(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="label_profiles")
+    name = models.CharField(max_length=120)
+    template_type = models.CharField(max_length=24, choices=LabelTemplateType.choices, default=LabelTemplateType.PREPARATION)
+    shelf_life_value = models.PositiveIntegerField(default=1)
+    shelf_life_unit = models.CharField(max_length=12, choices=LabelShelfLifeUnit.choices, default=LabelShelfLifeUnit.DAYS)
+    packaging = models.CharField(max_length=64, blank=True, default="")
+    storage_instructions = models.CharField(max_length=255, blank=True, default="")
+    show_internal_lot = models.BooleanField(default=True)
+    show_supplier_lot = models.BooleanField(default=False)
+    allergen_text = models.CharField(max_length=255, blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        unique_together = ("site", "name")
+
+
+class LabelPrintJob(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="label_print_jobs")
+    profile = models.ForeignKey(LabelProfile, on_delete=models.PROTECT, related_name="print_jobs")
+    lot = models.ForeignKey(Lot, null=True, blank=True, on_delete=models.SET_NULL, related_name="label_print_jobs")
+    lot_internal_code = models.CharField(max_length=64, blank=True, default="")
+    production_date = models.DateField()
+    dlc_date = models.DateField()
+    copies = models.PositiveIntegerField(default=1)
+    payload = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="label_print_jobs")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 class LotDocumentMatchStatus(models.TextChoices):
     CONFIRMED = "CONFIRMED", "CONFIRMED"
     REJECTED = "REJECTED", "REJECTED"

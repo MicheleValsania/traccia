@@ -16,6 +16,7 @@ Implementazione iniziale allineata alle decisioni di progetto:
 
 - `backend/`: Django + DRF (API e regole Fase 1)
 - `mobile/`: Expo React Native (mobile-first capture rapido)
+- `doc/progetto/14_label_payload_contract.md`: contratto stampa etichette (lifecycle + fiches)
 - upstream handoff reference: `C:\Users\user\chefside\fiches-recettes\traceability_handoff.json`
 
 ## Backend - avvio locale

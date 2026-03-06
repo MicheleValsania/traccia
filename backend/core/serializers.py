@@ -8,6 +8,10 @@ from .models import (
     ColdSector,
     FicheProduct,
     Lot,
+    LabelProfile,
+    LabelTemplateType,
+    LabelShelfLifeUnit,
+    LabelPrintJob,
     Site,
     TemperatureDeviceType,
     TemperatureReading,
@@ -268,6 +272,84 @@ class LotTransformSerializer(serializers.Serializer):
     output_quantity_value = serializers.DecimalField(max_digits=12, decimal_places=3, required=False)
     output_quantity_unit = serializers.CharField(required=False, allow_blank=True)
     note = serializers.CharField(required=False, allow_blank=True)
+
+
+class LabelProfileSerializer(serializers.ModelSerializer):
+    site_code = serializers.CharField(source="site.code", read_only=True)
+
+    class Meta:
+        model = LabelProfile
+        fields = [
+            "id",
+            "site_code",
+            "name",
+            "template_type",
+            "shelf_life_value",
+            "shelf_life_unit",
+            "packaging",
+            "storage_instructions",
+            "show_internal_lot",
+            "show_supplier_lot",
+            "allergen_text",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class LabelProfileWriteSerializer(serializers.Serializer):
+    site_code = serializers.CharField()
+    name = serializers.CharField(max_length=120)
+    template_type = serializers.ChoiceField(choices=LabelTemplateType.choices, required=False, default=LabelTemplateType.PREPARATION)
+    shelf_life_value = serializers.IntegerField(required=False, min_value=1, default=1)
+    shelf_life_unit = serializers.ChoiceField(choices=LabelShelfLifeUnit.choices, required=False, default=LabelShelfLifeUnit.DAYS)
+    packaging = serializers.CharField(required=False, allow_blank=True, default="")
+    storage_instructions = serializers.CharField(required=False, allow_blank=True, default="")
+    show_internal_lot = serializers.BooleanField(required=False, default=True)
+    show_supplier_lot = serializers.BooleanField(required=False, default=False)
+    allergen_text = serializers.CharField(required=False, allow_blank=True, default="")
+    is_active = serializers.BooleanField(required=False, default=True)
+
+
+class LabelProfileUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=120, required=False)
+    template_type = serializers.ChoiceField(choices=LabelTemplateType.choices, required=False)
+    shelf_life_value = serializers.IntegerField(required=False, min_value=1)
+    shelf_life_unit = serializers.ChoiceField(choices=LabelShelfLifeUnit.choices, required=False)
+    packaging = serializers.CharField(required=False, allow_blank=True)
+    storage_instructions = serializers.CharField(required=False, allow_blank=True)
+    show_internal_lot = serializers.BooleanField(required=False)
+    show_supplier_lot = serializers.BooleanField(required=False)
+    allergen_text = serializers.CharField(required=False, allow_blank=True)
+    is_active = serializers.BooleanField(required=False)
+
+
+class LabelPrintRequestSerializer(serializers.Serializer):
+    site_code = serializers.CharField()
+    profile_id = serializers.UUIDField()
+    lot_id = serializers.UUIDField(required=False)
+    copies = serializers.IntegerField(required=False, min_value=1, max_value=200, default=1)
+
+
+class LabelPrintJobSerializer(serializers.ModelSerializer):
+    site_code = serializers.CharField(source="site.code", read_only=True)
+    profile_name = serializers.CharField(source="profile.name", read_only=True)
+
+    class Meta:
+        model = LabelPrintJob
+        fields = [
+            "id",
+            "site_code",
+            "profile",
+            "profile_name",
+            "lot",
+            "lot_internal_code",
+            "production_date",
+            "dlc_date",
+            "copies",
+            "payload",
+            "created_at",
+        ]
 
 
 class AlertSerializer(serializers.ModelSerializer):

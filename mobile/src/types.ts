@@ -158,4 +158,38 @@ export type MeResponse = {
   memberships: Array<{ site_code: string; site_name: string; role: string }>;
 };
 
-export type TabKey = "camera" | "dashboard" | "lifecycle" | "temperatures" | "settings";
+export type LabelTemplateType = "RAW_MATERIAL" | "PREPARATION" | "TRANSFORMATION";
+export type LabelShelfLifeUnit = "hours" | "days" | "months";
+
+export type LabelProfile = {
+  id: string;
+  site_code: string;
+  name: string;
+  template_type: LabelTemplateType;
+  shelf_life_value: number;
+  shelf_life_unit: LabelShelfLifeUnit;
+  packaging: string;
+  storage_instructions: string;
+  show_internal_lot: boolean;
+  show_supplier_lot: boolean;
+  allergen_text: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LabelPrintJob = {
+  id: string;
+  site_code: string;
+  profile: string;
+  profile_name: string;
+  lot: string | null;
+  lot_internal_code: string;
+  production_date: string;
+  dlc_date: string;
+  copies: number;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export type TabKey = "camera" | "dashboard" | "lifecycle" | "temperatures" | "labels" | "settings";

@@ -1,4 +1,5 @@
 import base64
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db import transaction
@@ -35,6 +36,8 @@ from .models import (
     TemperatureRegister,
     TemperatureRoute,
     TemperatureRouteStep,
+    LabelProfile,
+    LabelPrintJob,
 )
 from .serializers import (
     AlertSerializer,
@@ -47,6 +50,11 @@ from .serializers import (
     ActiveLotSearchFilterSerializer,
     ActiveLotSearchResultSerializer,
     LotTransformSerializer,
+    LabelProfileSerializer,
+    LabelProfileWriteSerializer,
+    LabelProfileUpdateSerializer,
+    LabelPrintRequestSerializer,
+    LabelPrintJobSerializer,
     OcrResultSerializer,
     ReconcileIdenticalLotsSerializer,
     SiteSerializer,
@@ -182,6 +190,14 @@ def _reference_temperature_celsius(*, device_type: str, cold_point: ColdPoint | 
         TemperatureDeviceType.COLD_ROOM: Decimal("3.00"),
     }
     return defaults.get(device_type)
+
+
+def _compute_label_dlc_date(*, production_date, shelf_life_value: int, shelf_life_unit: str):
+    if shelf_life_unit == "hours":
+        return production_date + timedelta(days=1 if shelf_life_value > 0 else 0)
+    if shelf_life_unit == "months":
+        return production_date + timedelta(days=30 * shelf_life_value)
+    return production_date + timedelta(days=shelf_life_value)
 
 
 class FicheImportView(APIView):
@@ -863,6 +879,169 @@ class ActiveLotSearchView(APIView):
 
         qs = qs.order_by("-received_date", "-updated_at")[: params["limit"]]
         return Response(ActiveLotSearchResultSerializer(qs, many=True).data, status=status.HTTP_200_OK)
+
+
+class LabelProfileListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        site_code = request.query_params.get("site_code", "").strip()
+        if not site_code:
+            return Response({"detail": "site_code is required."}, status=status.HTTP_400_BAD_REQUEST)
+        site = Site.objects.filter(code=site_code).first()
+        if not site:
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_site_role(request, site, SITE_READ_ROLES)
+        if auth_error:
+            return auth_error
+        qs = LabelProfile.objects.filter(site=site).order_by("name")
+        return Response(LabelProfileSerializer(qs, many=True).data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        payload = LabelProfileWriteSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        site = Site.objects.filter(code=data["site_code"]).first()
+        if not site:
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_site_role(request, site, SITE_WRITE_ROLES)
+        if auth_error:
+            return auth_error
+        profile = LabelProfile.objects.create(
+            site=site,
+            name=data["name"].strip(),
+            template_type=data.get("template_type"),
+            shelf_life_value=data.get("shelf_life_value", 1),
+            shelf_life_unit=data.get("shelf_life_unit", "days"),
+            packaging=data.get("packaging", "").strip(),
+            storage_instructions=data.get("storage_instructions", "").strip(),
+            show_internal_lot=data.get("show_internal_lot", True),
+            show_supplier_lot=data.get("show_supplier_lot", False),
+            allergen_text=data.get("allergen_text", "").strip(),
+            is_active=data.get("is_active", True),
+        )
+        log_audit_event(
+            action="LABEL_PROFILE_CREATED",
+            request=request,
+            site=site,
+            object_type="LabelProfile",
+            object_id=str(profile.id),
+            payload={"name": profile.name, "template_type": profile.template_type},
+        )
+        return Response(LabelProfileSerializer(profile).data, status=status.HTTP_201_CREATED)
+
+
+class LabelProfileDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, profile_id):
+        profile = LabelProfile.objects.select_related("site").filter(id=profile_id).first()
+        if not profile:
+            return Response({"detail": "Label profile not found."}, status=status.HTTP_404_NOT_FOUND)
+        auth_error = _ensure_site_role(request, profile.site, SITE_WRITE_ROLES)
+        if auth_error:
+            return auth_error
+        payload = LabelProfileUpdateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        for field in [
+            "name",
+            "template_type",
+            "shelf_life_value",
+            "shelf_life_unit",
+            "packaging",
+            "storage_instructions",
+            "show_internal_lot",
+            "show_supplier_lot",
+            "allergen_text",
+            "is_active",
+        ]:
+            if field in data:
+                value = data[field]
+                if isinstance(value, str):
+                    value = value.strip()
+                setattr(profile, field, value)
+        profile.save()
+        log_audit_event(
+            action="LABEL_PROFILE_UPDATED",
+            request=request,
+            site=profile.site,
+            object_type="LabelProfile",
+            object_id=str(profile.id),
+            payload={"name": profile.name, "template_type": profile.template_type, "is_active": profile.is_active},
+        )
+        return Response(LabelProfileSerializer(profile).data, status=status.HTTP_200_OK)
+
+
+class LabelPrintView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        payload = LabelPrintRequestSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+
+        site = Site.objects.filter(code=data["site_code"]).first()
+        if not site:
+            return Response({"detail": "Unknown site_code."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_site_role(request, site, SITE_WRITE_ROLES)
+        if auth_error:
+            return auth_error
+
+        profile = LabelProfile.objects.filter(id=data["profile_id"], site=site).first()
+        if not profile:
+            return Response({"detail": "Unknown profile_id for site."}, status=status.HTTP_400_BAD_REQUEST)
+
+        lot = None
+        if data.get("lot_id"):
+            lot = Lot.objects.filter(id=data["lot_id"], site=site).first()
+            if not lot:
+                return Response({"detail": "Unknown lot_id for site."}, status=status.HTTP_400_BAD_REQUEST)
+
+        production_date = timezone.localdate()
+        dlc_date = _compute_label_dlc_date(
+            production_date=production_date,
+            shelf_life_value=profile.shelf_life_value,
+            shelf_life_unit=profile.shelf_life_unit,
+        )
+        lot_code = lot.internal_lot_code if lot else ""
+        payload_data = {
+            "profile_name": profile.name,
+            "template_type": profile.template_type,
+            "production_date": production_date.isoformat(),
+            "dlc_date": dlc_date.isoformat(),
+            "lot_internal_code": lot_code,
+            "packaging": profile.packaging,
+            "storage_instructions": profile.storage_instructions,
+            "allergen_text": profile.allergen_text,
+        }
+        job = LabelPrintJob.objects.create(
+            site=site,
+            profile=profile,
+            lot=lot,
+            lot_internal_code=lot_code,
+            production_date=production_date,
+            dlc_date=dlc_date,
+            copies=data.get("copies", 1),
+            payload=payload_data,
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+        log_audit_event(
+            action="LABEL_PRINT_REQUESTED",
+            request=request,
+            site=site,
+            object_type="LabelPrintJob",
+            object_id=str(job.id),
+            payload={
+                "profile_id": str(profile.id),
+                "lot_id": str(lot.id) if lot else "",
+                "copies": job.copies,
+                "production_date": payload_data["production_date"],
+                "dlc_date": payload_data["dlc_date"],
+            },
+        )
+        return Response({"print_job": LabelPrintJobSerializer(job).data}, status=status.HTTP_201_CREATED)
 
 
 class LotValidateView(APIView):

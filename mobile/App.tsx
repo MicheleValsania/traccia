@@ -6,6 +6,7 @@ import { fetchDrafts, fetchMe, loginToken } from "./src/api";
 import { AuthCard } from "./src/components/AuthCard";
 import { CaptureScreen } from "./src/screens/CaptureScreen";
 import { DraftsScreen } from "./src/screens/DraftsScreen";
+import { LabelsScreen } from "./src/screens/LabelsScreen";
 import { LifecycleScreen } from "./src/screens/LifecycleScreen";
 import { ReportsScreen } from "./src/screens/ReportsScreen";
 import { TemperatureScreen } from "./src/screens/TemperatureScreen";
@@ -13,11 +14,12 @@ import { appStyles } from "./src/styles";
 import { CaptureResponse, DraftLot, TabKey } from "./src/types";
 
 const TABS: Array<{ key: TabKey; icon: string; label: string }> = [
-  { key: "camera", icon: "📷", label: "Camera" },
-  { key: "dashboard", icon: "🍽️", label: "Dashboard" },
-  { key: "lifecycle", icon: "🔁", label: "Lifecycle" },
-  { key: "temperatures", icon: "🌡️", label: "Temperature" },
-  { key: "settings", icon: "⚙️", label: "Parametri" },
+  { key: "camera", icon: "\u{1F4F7}", label: "Camera" },
+  { key: "dashboard", icon: "\u{1F37D}\uFE0F", label: "Dashboard" },
+  { key: "lifecycle", icon: "\u{1F501}", label: "Lifecycle" },
+  { key: "temperatures", icon: "\u{1F321}\uFE0F", label: "Temperature" },
+  { key: "labels", icon: "\u{1F3F7}\uFE0F", label: "Etichette" },
+  { key: "settings", icon: "\u2699\uFE0F", label: "Parametri" },
 ];
 
 export default function App() {
@@ -131,6 +133,9 @@ export default function App() {
         {token && activeTab === "temperatures" ? (
           <TemperatureScreen token={token} siteCode={siteCode} setSiteCode={setSiteCode} setError={setError} />
         ) : null}
+        {token && activeTab === "labels" ? (
+          <LabelsScreen token={token} siteCode={siteCode} setError={setError} />
+        ) : null}
         {token && activeTab === "settings" ? (
           <View style={appStyles.card}>
             <Text style={appStyles.sectionTitle}>Parametri</Text>
@@ -147,23 +152,23 @@ export default function App() {
         <View style={appStyles.bottomNavWrap}>
           {navHint ? <Text style={appStyles.bottomNavHint}>{navHint}</Text> : null}
           <View style={appStyles.bottomNav}>
-          {TABS.map((tab) => (
-            <Pressable
-              key={tab.key}
-              style={({ pressed }) => [
-                appStyles.bottomNavItem,
-                activeTab === tab.key ? appStyles.bottomNavItemActive : undefined,
-                pressed ? appStyles.tabButtonPressed : undefined,
-              ]}
-              onPressIn={() => showNavHint(tab.label)}
-              onPress={() => {
-                setActiveTab(tab.key);
-                showNavHint(tab.label);
-              }}
-            >
-              <Text style={[appStyles.bottomNavIcon, activeTab === tab.key ? appStyles.bottomNavIconActive : undefined]}>{tab.icon}</Text>
-            </Pressable>
-          ))}
+            {TABS.map((tab) => (
+              <Pressable
+                key={tab.key}
+                style={({ pressed }) => [
+                  appStyles.bottomNavItem,
+                  activeTab === tab.key ? appStyles.bottomNavItemActive : undefined,
+                  pressed ? appStyles.tabButtonPressed : undefined,
+                ]}
+                onPressIn={() => showNavHint(tab.label)}
+                onPress={() => {
+                  setActiveTab(tab.key);
+                  showNavHint(tab.label);
+                }}
+              >
+                <Text style={[appStyles.bottomNavIcon, activeTab === tab.key ? appStyles.bottomNavIconActive : undefined]}>{tab.icon}</Text>
+              </Pressable>
+            ))}
           </View>
         </View>
       ) : null}

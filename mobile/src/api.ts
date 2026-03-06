@@ -5,6 +5,8 @@ import {
   ColdPoint,
   ColdSector,
   DraftLot,
+  LabelPrintJob,
+  LabelProfile,
   MeResponse,
   TemperatureCaptureResponse,
   TemperaturePreviewResponse,
@@ -175,6 +177,114 @@ export async function fetchActiveLotsSearch(params: {
     throw new Error(details || "Ricerca lotti attivi fallita.");
   }
   return (await response.json()) as ActiveLotSearchItem[];
+}
+
+export async function fetchLabelProfiles(token: string, siteCode: string): Promise<LabelProfile[]> {
+  const response = await fetch(
+    `${API_BASE}/labels/profiles?site_code=${encodeURIComponent(siteCode)}`,
+    withAuth(token, { method: "GET" }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento profili etichetta fallito.");
+  }
+  return (await response.json()) as LabelProfile[];
+}
+
+export async function createLabelProfile(params: {
+  token: string;
+  siteCode: string;
+  name: string;
+  templateType?: "RAW_MATERIAL" | "PREPARATION" | "TRANSFORMATION";
+  shelfLifeValue?: number;
+  shelfLifeUnit?: "hours" | "days" | "months";
+  packaging?: string;
+  storageInstructions?: string;
+  allergenText?: string;
+  isActive?: boolean;
+}): Promise<LabelProfile> {
+  const response = await fetch(
+    `${API_BASE}/labels/profiles`,
+    withAuth(params.token, {
+      method: "POST",
+      body: JSON.stringify({
+        site_code: params.siteCode,
+        name: params.name,
+        template_type: params.templateType || "PREPARATION",
+        shelf_life_value: params.shelfLifeValue ?? 1,
+        shelf_life_unit: params.shelfLifeUnit || "days",
+        packaging: params.packaging || "",
+        storage_instructions: params.storageInstructions || "",
+        allergen_text: params.allergenText || "",
+        is_active: params.isActive ?? true,
+      }),
+    }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Creazione profilo etichetta fallita.");
+  }
+  return (await response.json()) as LabelProfile;
+}
+
+export async function updateLabelProfile(params: {
+  token: string;
+  profileId: string;
+  name?: string;
+  templateType?: "RAW_MATERIAL" | "PREPARATION" | "TRANSFORMATION";
+  shelfLifeValue?: number;
+  shelfLifeUnit?: "hours" | "days" | "months";
+  packaging?: string;
+  storageInstructions?: string;
+  allergenText?: string;
+  isActive?: boolean;
+}): Promise<LabelProfile> {
+  const body: Record<string, unknown> = {};
+  if (params.name !== undefined) body.name = params.name;
+  if (params.templateType !== undefined) body.template_type = params.templateType;
+  if (params.shelfLifeValue !== undefined) body.shelf_life_value = params.shelfLifeValue;
+  if (params.shelfLifeUnit !== undefined) body.shelf_life_unit = params.shelfLifeUnit;
+  if (params.packaging !== undefined) body.packaging = params.packaging;
+  if (params.storageInstructions !== undefined) body.storage_instructions = params.storageInstructions;
+  if (params.allergenText !== undefined) body.allergen_text = params.allergenText;
+  if (params.isActive !== undefined) body.is_active = params.isActive;
+
+  const response = await fetch(
+    `${API_BASE}/labels/profiles/${params.profileId}`,
+    withAuth(params.token, { method: "PUT", body: JSON.stringify(body) }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Aggiornamento profilo etichetta fallito.");
+  }
+  return (await response.json()) as LabelProfile;
+}
+
+export async function requestLabelPrint(params: {
+  token: string;
+  siteCode: string;
+  profileId: string;
+  lotId?: string;
+  copies: number;
+}): Promise<LabelPrintJob> {
+  const response = await fetch(
+    `${API_BASE}/labels/print`,
+    withAuth(params.token, {
+      method: "POST",
+      body: JSON.stringify({
+        site_code: params.siteCode,
+        profile_id: params.profileId,
+        lot_id: params.lotId || undefined,
+        copies: params.copies,
+      }),
+    }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Richiesta stampa etichette fallita.");
+  }
+  const body = (await response.json()) as { print_job: LabelPrintJob };
+  return body.print_job;
 }
 
 export function reportCsvUrl(siteCode: string, token: string): string {
