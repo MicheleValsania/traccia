@@ -212,11 +212,14 @@ export async function confirmTemperatureReading(params: {
   deviceLabel?: string;
   deviceType?: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER";
   confirmedTemperatureCelsius: string;
+  source?: "OCR_PHOTO_CONFIRMED" | "MANUAL_PRESET" | "MANUAL_OUT_OF_RANGE";
   observedAt?: string;
   ocrProvider?: string;
   ocrConfidence?: number | null;
   ocrSuggestedTemperatureCelsius?: number;
   ocrWarnings?: string[];
+  manualDeviationReason?: string;
+  correctiveAction?: string;
 }): Promise<TemperatureCaptureResponse> {
   const payload = {
     site_code: params.siteCode,
@@ -224,11 +227,14 @@ export async function confirmTemperatureReading(params: {
     device_label: params.deviceLabel || "",
     device_type: params.deviceType || undefined,
     confirmed_temperature_celsius: params.confirmedTemperatureCelsius,
+    source: params.source || undefined,
     observed_at: params.observedAt || undefined,
     ocr_provider: params.ocrProvider || "",
     ocr_confidence: params.ocrConfidence ?? undefined,
     ocr_suggested_temperature_celsius: params.ocrSuggestedTemperatureCelsius ?? undefined,
     ocr_warnings: params.ocrWarnings || [],
+    manual_deviation_reason: params.manualDeviationReason || "",
+    corrective_action: params.correctiveAction || "",
   };
   const response = await fetch(
     `${API_BASE}/temperatures/confirm`,

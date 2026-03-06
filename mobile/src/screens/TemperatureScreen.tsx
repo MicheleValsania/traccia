@@ -28,7 +28,7 @@ type Props = {
 export function TemperatureScreen(props: Props) {
   const [programming, setProgramming] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
-  const [mode, setMode] = React.useState<"single" | "sequence">("single");
+  const [mode, setMode] = React.useState<"single" | "sequence" | "manual">("single");
 
   const [sectors, setSectors] = React.useState<ColdSector[]>([]);
   const [points, setPoints] = React.useState<ColdPoint[]>([]);
@@ -46,6 +46,10 @@ export function TemperatureScreen(props: Props) {
   const [lastCapture, setLastCapture] = React.useState<TemperatureCaptureResponse | null>(null);
   const [pendingPreview, setPendingPreview] = React.useState<TemperaturePreviewResponse | null>(null);
   const [confirmTempInput, setConfirmTempInput] = React.useState("");
+  const [manualOutOfRangeTempInput, setManualOutOfRangeTempInput] = React.useState("");
+  const [manualReasonInput, setManualReasonInput] = React.useState("");
+  const [manualActionInput, setManualActionInput] = React.useState("");
+  const [savingManual, setSavingManual] = React.useState(false);
   const [infoMessage, setInfoMessage] = React.useState("");
 
   const [sequenceCameraOpen, setSequenceCameraOpen] = React.useState(false);
@@ -301,6 +305,58 @@ export function TemperatureScreen(props: Props) {
     }
   }
 
+  function manualPresetValues(deviceType: ColdPoint["device_type"] | undefined): number[] {
+    if (deviceType === "FREEZER") {
+      return [-21, -20, -19, -18, -17, -16, -15];
+    }
+    return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  }
+
+  async function saveManualReading(rawTemperature: string, outOfRange: boolean) {
+    if (!selectedPoint) {
+      props.setError("Seleziona un punto freddo.");
+      return;
+    }
+    const normalized = rawTemperature.trim().replace(",", ".");
+    const parsed = Number(normalized);
+    if (!normalized || Number.isNaN(parsed)) {
+      props.setError("Inserisci una temperatura valida.");
+      return;
+    }
+    const reason = manualReasonInput.trim();
+    const action = manualActionInput.trim();
+    if (outOfRange && (!reason || !action)) {
+      props.setError("Per fuori range inserisci motivo dello scarto e intervento.");
+      return;
+    }
+
+    setSavingManual(true);
+    try {
+      const saved = await confirmTemperatureReading({
+        token: props.token,
+        siteCode: props.siteCode,
+        coldPointId: selectedPoint.id,
+        deviceLabel: selectedPoint.name,
+        deviceType: selectedPoint.device_type,
+        confirmedTemperatureCelsius: parsed.toFixed(2),
+        source: outOfRange ? "MANUAL_OUT_OF_RANGE" : "MANUAL_PRESET",
+        observedAt: new Date().toISOString(),
+        manualDeviationReason: outOfRange ? reason : "",
+        correctiveAction: outOfRange ? action : "",
+      });
+      setLastCapture(saved);
+      setManualOutOfRangeTempInput("");
+      setManualReasonInput("");
+      setManualActionInput("");
+      setInfoMessage(outOfRange ? "Temperatura fuori range registrata." : "Temperatura manuale registrata.");
+      await refreshReadings();
+    } catch (e) {
+      props.setError(e instanceof Error ? e.message : "Errore salvataggio manuale.");
+    } finally {
+      setSavingManual(false);
+    }
+  }
+
   async function captureSingle() {
     if (!selectedPoint) {
       props.setError("Seleziona un punto freddo.");
@@ -501,13 +557,16 @@ export function TemperatureScreen(props: Props) {
               <Pressable style={[appStyles.tabButton, mode === "sequence" ? appStyles.tabButtonActive : undefined]} onPress={() => setMode("sequence")}>
                 <Text style={[appStyles.tabText, mode === "sequence" ? appStyles.tabTextActive : undefined]}>Modalita sequenza</Text>
               </Pressable>
+              <Pressable style={[appStyles.tabButton, mode === "manual" ? appStyles.tabButtonActive : undefined]} onPress={() => setMode("manual")}>
+                <Text style={[appStyles.tabText, mode === "manual" ? appStyles.tabTextActive : undefined]}>Manuale</Text>
+              </Pressable>
             </View>
 
             {mode === "single" ? (
               <Pressable style={appStyles.button} onPress={captureSingle} disabled={loading || !selectedPoint || !!pendingPreview}>
                 <Text style={appStyles.buttonText}>{loading ? "Elaborazione..." : "Scatta singolo"}</Text>
               </Pressable>
-            ) : (
+            ) : mode === "sequence" ? (
               <>
                 <Text style={appStyles.tokenPreview}>
                   {currentSequencePoint
@@ -516,6 +575,48 @@ export function TemperatureScreen(props: Props) {
                 </Text>
                 <Pressable style={appStyles.button} onPress={openSequenceCamera} disabled={loading || !sequencePoints.length || !!pendingPreview}>
                   <Text style={appStyles.buttonText}>Apri camera sequenza</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={appStyles.tokenPreview}>
+                  Metodo manuale su: {selectedPoint ? `${selectedPoint.sort_order}. ${selectedPoint.name}` : "nessun punto selezionato"}
+                </Text>
+                <Text style={appStyles.label}>Preset {selectedPoint?.device_type === "FREEZER" ? "freezer (-21..-15 C)" : "frigo/cella (0..10 C)"}</Text>
+                <View style={appStyles.tabsRow}>
+                  {manualPresetValues(selectedPoint?.device_type).map((value) => (
+                    <Pressable
+                      key={`manual-preset-${value}`}
+                      style={appStyles.tabButton}
+                      onPress={() => void saveManualReading(String(value), false)}
+                      disabled={!selectedPoint || savingManual}
+                    >
+                      <Text style={appStyles.tabText}>{value} C</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={appStyles.label}>Fuori range</Text>
+                <TextInput
+                  style={appStyles.input}
+                  value={manualOutOfRangeTempInput}
+                  onChangeText={setManualOutOfRangeTempInput}
+                  keyboardType="decimal-pad"
+                  placeholder="Temperatura fuori range (es: 12 o -25)"
+                />
+                <TextInput
+                  style={appStyles.input}
+                  value={manualReasonInput}
+                  onChangeText={setManualReasonInput}
+                  placeholder="Motivo dello scarto"
+                />
+                <TextInput
+                  style={appStyles.input}
+                  value={manualActionInput}
+                  onChangeText={setManualActionInput}
+                  placeholder="Intervento eseguito"
+                />
+                <Pressable style={appStyles.buttonSecondary} onPress={() => void saveManualReading(manualOutOfRangeTempInput, true)} disabled={!selectedPoint || savingManual}>
+                  <Text style={appStyles.buttonSecondaryText}>{savingManual ? "Salvataggio..." : "Registra fuori range"}</Text>
                 </Pressable>
               </>
             )}

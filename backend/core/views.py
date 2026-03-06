@@ -743,7 +743,7 @@ class TemperatureConfirmView(APIView):
             temperature_celsius=confirmed_temp,
             unit="C",
             observed_at=data.get("observed_at") or timezone.now(),
-            source="OCR_PHOTO_CONFIRMED",
+            source=data.get("source", "OCR_PHOTO_CONFIRMED"),
             ocr_provider=str(data.get("ocr_provider", "") or ""),
             confidence=data.get("ocr_confidence"),
             ocr_payload={
@@ -751,6 +751,8 @@ class TemperatureConfirmView(APIView):
                 "operator_confirmed_temperature_celsius": str(confirmed_temp),
                 "warnings": data.get("ocr_warnings", []),
                 "post_confirm_warnings": warnings,
+                "manual_deviation_reason": str(data.get("manual_deviation_reason", "") or ""),
+                "corrective_action": str(data.get("corrective_action", "") or ""),
             },
             created_by=request.user if request.user.is_authenticated else None,
         )
@@ -767,7 +769,10 @@ class TemperatureConfirmView(APIView):
                 "reference_temperature_celsius": str(reading.reference_temperature_celsius or ""),
                 "temperature_celsius": str(reading.temperature_celsius),
                 "device_type": reading.device_type,
+                "source": reading.source,
                 "warnings": warnings,
+                "manual_deviation_reason": str(data.get("manual_deviation_reason", "") or ""),
+                "corrective_action": str(data.get("corrective_action", "") or ""),
                 "photo_persisted": False,
             },
         )
