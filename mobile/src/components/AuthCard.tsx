@@ -30,7 +30,7 @@ export function AuthCard(props: Props) {
         secureTextEntry
         placeholder="password"
       />
-      <Pressable style={appStyles.button} onPress={props.onLogin}>
+      <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={props.onLogin}>
         <Text style={appStyles.buttonText}>{props.token ? "Aggiorna token" : "Login token"}</Text>
       </Pressable>
       {props.token ? <Text style={appStyles.tokenPreview}>Token attivo: {props.token.slice(0, 12)}...</Text> : null}

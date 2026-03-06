@@ -209,7 +209,11 @@ export function CaptureScreen(props: Props) {
         <Text style={appStyles.label}>Modalità operativa</Text>
         <View style={appStyles.tabsRow}>
           <Pressable
-            style={[appStyles.tabButton, mode === "camera_only" ? appStyles.tabButtonActive : undefined]}
+            style={({ pressed }) => [
+              appStyles.tabButton,
+              mode === "camera_only" ? appStyles.tabButtonActive : undefined,
+              pressed ? appStyles.tabButtonPressed : undefined,
+            ]}
             onPress={() => setMode("camera_only")}
             disabled={props.loading}
           >
@@ -218,7 +222,11 @@ export function CaptureScreen(props: Props) {
             </Text>
           </Pressable>
           <Pressable
-            style={[appStyles.tabButton, mode === "full_flow" ? appStyles.tabButtonActive : undefined]}
+            style={({ pressed }) => [
+              appStyles.tabButton,
+              mode === "full_flow" ? appStyles.tabButtonActive : undefined,
+              pressed ? appStyles.tabButtonPressed : undefined,
+            ]}
             onPress={() => setMode("full_flow")}
             disabled={props.loading}
           >
@@ -235,7 +243,7 @@ export function CaptureScreen(props: Props) {
         {mode === "camera_only" ? (
           <Text style={appStyles.success}>Scatti inviati in sessione: {sessionShots}</Text>
         ) : null}
-        <Pressable style={appStyles.button} onPress={captureLabel} disabled={props.loading || !props.token}>
+        <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={captureLabel} disabled={props.loading || !props.token}>
           <Text style={appStyles.buttonText}>
             {props.loading
               ? "Elaborazione..."
@@ -244,7 +252,11 @@ export function CaptureScreen(props: Props) {
                 : "Apri camera (estrazione immediata)"}
           </Text>
         </Pressable>
-        <Pressable style={appStyles.buttonSecondary} onPress={pickFromGallery} disabled={props.loading || !props.token}>
+        <Pressable
+          style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
+          onPress={pickFromGallery}
+          disabled={props.loading || !props.token}
+        >
           <Text style={appStyles.buttonSecondaryText}>
             {props.loading ? "Elaborazione..." : "Fallback: scegli dalla galleria"}
           </Text>
@@ -259,10 +271,14 @@ export function CaptureScreen(props: Props) {
             Scatti: {sessionShots} | Caricati: {uploadedShots} | In coda: {pendingUploads} | Errori: {failedShots}
           </Text>
           <View style={appStyles.tabsRow}>
-            <Pressable style={appStyles.button} onPress={takeContinuousShot} disabled={takingShot || props.loading}>
+            <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={takeContinuousShot} disabled={takingShot || props.loading}>
               <Text style={appStyles.buttonText}>{takingShot ? "Scatto..." : "Scatta"}</Text>
             </Pressable>
-            <Pressable style={appStyles.buttonSecondary} onPress={closeContinuousCameraSession} disabled={takingShot}>
+            <Pressable
+              style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
+              onPress={closeContinuousCameraSession}
+              disabled={takingShot}
+            >
               <Text style={appStyles.buttonSecondaryText}>Fine sessione</Text>
             </Pressable>
           </View>

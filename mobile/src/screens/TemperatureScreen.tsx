@@ -421,15 +421,18 @@ export function TemperatureScreen(props: Props) {
       <View style={appStyles.card}>
         <Text style={appStyles.sectionTitle}>Temperature</Text>
         <Text style={appStyles.tokenPreview}>Site: {props.siteCode}</Text>
-        {infoMessage ? <Text style={appStyles.tokenPreview}>{infoMessage}</Text> : null}
+        {infoMessage ? <Text style={appStyles.infoText}>{infoMessage}</Text> : null}
 
         <View style={appStyles.tabsRow}>
           {!programming ? (
-            <Pressable style={appStyles.button} onPress={() => setProgramming(true)}>
+            <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={() => setProgramming(true)}>
               <Text style={appStyles.buttonText}>Programmazione</Text>
             </Pressable>
           ) : (
-            <Pressable style={appStyles.buttonSecondary} onPress={() => setProgramming(false)}>
+            <Pressable
+              style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
+              onPress={() => setProgramming(false)}
+            >
               <Text style={appStyles.buttonSecondaryText}>Torna a Temperature</Text>
             </Pressable>
           )}
@@ -445,7 +448,11 @@ export function TemperatureScreen(props: Props) {
             {sectors.map((sector) => (
               <Pressable
                 key={sector.id}
-                style={[appStyles.tabButton, selectedSectorId === sector.id ? appStyles.tabButtonActive : undefined]}
+                style={({ pressed }) => [
+                  appStyles.tabButton,
+                  selectedSectorId === sector.id ? appStyles.tabButtonActive : undefined,
+                  pressed ? appStyles.tabButtonPressed : undefined,
+                ]}
                 onPress={() => {
                   setSelectedSectorId(sector.id);
                   startEditSector(sector);
@@ -458,11 +465,11 @@ export function TemperatureScreen(props: Props) {
           </View>
           <TextInput style={appStyles.input} value={sectorInput} onChangeText={setSectorInput} placeholder="Nuovo settore" />
           <View style={appStyles.tabsRow}>
-            <Pressable style={appStyles.buttonSecondary} onPress={submitSector}>
+            <Pressable style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]} onPress={submitSector}>
               <Text style={appStyles.buttonSecondaryText}>{editingSectorId ? "Salva modifiche settore" : "Aggiungi settore"}</Text>
             </Pressable>
             {editingSectorId ? (
-              <Pressable style={appStyles.buttonSecondary} onPress={startCreateSector}>
+              <Pressable style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]} onPress={startCreateSector}>
                 <Text style={appStyles.buttonSecondaryText}>Nuovo</Text>
               </Pressable>
             ) : null}
@@ -473,7 +480,11 @@ export function TemperatureScreen(props: Props) {
             {sequencePoints.map((point) => (
               <View key={point.id} style={appStyles.chipWithDelete}>
                 <Pressable
-                  style={[appStyles.tabButton, selectedPointId === point.id ? appStyles.tabButtonActive : undefined]}
+                  style={({ pressed }) => [
+                    appStyles.tabButton,
+                    selectedPointId === point.id ? appStyles.tabButtonActive : undefined,
+                    pressed ? appStyles.tabButtonPressed : undefined,
+                  ]}
                   onPress={() => {
                     setSelectedPointId(point.id);
                     startEditPoint(point);
@@ -483,7 +494,7 @@ export function TemperatureScreen(props: Props) {
                     {point.sort_order}. {point.name}
                   </Text>
                 </Pressable>
-                <Pressable style={appStyles.chipDelete} onPress={() => void removePoint(point)}>
+                <Pressable style={({ pressed }) => [appStyles.chipDelete, pressed ? appStyles.tabButtonPressed : undefined]} onPress={() => void removePoint(point)}>
                   <Text style={appStyles.chipDeleteText}>X</Text>
                 </Pressable>
               </View>
@@ -496,7 +507,11 @@ export function TemperatureScreen(props: Props) {
             {(["FRIDGE", "FREEZER", "COLD_ROOM", "OTHER"] as const).map((type) => (
               <Pressable
                 key={type}
-                style={[appStyles.tabButton, pointTypeInput === type ? appStyles.tabButtonActive : undefined]}
+                style={({ pressed }) => [
+                  appStyles.tabButton,
+                  pointTypeInput === type ? appStyles.tabButtonActive : undefined,
+                  pressed ? appStyles.tabButtonPressed : undefined,
+                ]}
                 onPress={() => setPointTypeInput(type)}
               >
                 <Text style={[appStyles.tabText, pointTypeInput === type ? appStyles.tabTextActive : undefined]}>{type}</Text>
@@ -504,11 +519,15 @@ export function TemperatureScreen(props: Props) {
             ))}
           </View>
           <View style={appStyles.tabsRow}>
-            <Pressable style={appStyles.buttonSecondary} onPress={submitPoint} disabled={!selectedSector}>
+            <Pressable
+              style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
+              onPress={submitPoint}
+              disabled={!selectedSector}
+            >
               <Text style={appStyles.buttonSecondaryText}>{editingPointId ? "Salva modifiche" : "Aggiungi punto freddo"}</Text>
             </Pressable>
             {editingPointId ? (
-              <Pressable style={appStyles.buttonSecondary} onPress={startCreatePoint}>
+              <Pressable style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]} onPress={startCreatePoint}>
                 <Text style={appStyles.buttonSecondaryText}>Nuovo</Text>
               </Pressable>
             ) : null}
@@ -523,7 +542,11 @@ export function TemperatureScreen(props: Props) {
               {sectors.map((sector) => (
                 <Pressable
                   key={sector.id}
-                  style={[appStyles.tabButton, selectedSectorId === sector.id ? appStyles.tabButtonActive : undefined]}
+                  style={({ pressed }) => [
+                    appStyles.tabButton,
+                    selectedSectorId === sector.id ? appStyles.tabButtonActive : undefined,
+                    pressed ? appStyles.tabButtonPressed : undefined,
+                  ]}
                   onPress={() => {
                     setSelectedSectorId(sector.id);
                     void loadPoints(sector.id);
@@ -539,7 +562,11 @@ export function TemperatureScreen(props: Props) {
               {sequencePoints.map((point) => (
                 <Pressable
                   key={point.id}
-                  style={[appStyles.tabButton, selectedPointId === point.id ? appStyles.tabButtonActive : undefined]}
+                  style={({ pressed }) => [
+                    appStyles.tabButton,
+                    selectedPointId === point.id ? appStyles.tabButtonActive : undefined,
+                    pressed ? appStyles.tabButtonPressed : undefined,
+                  ]}
                   onPress={() => setSelectedPointId(point.id)}
                 >
                   <Text style={[appStyles.tabText, selectedPointId === point.id ? appStyles.tabTextActive : undefined]}>
@@ -551,19 +578,40 @@ export function TemperatureScreen(props: Props) {
 
             <Text style={appStyles.label}>Modalita</Text>
             <View style={appStyles.tabsRow}>
-              <Pressable style={[appStyles.tabButton, mode === "single" ? appStyles.tabButtonActive : undefined]} onPress={() => setMode("single")}>
+              <Pressable
+                style={({ pressed }) => [
+                  appStyles.tabButton,
+                  mode === "single" ? appStyles.tabButtonActive : undefined,
+                  pressed ? appStyles.tabButtonPressed : undefined,
+                ]}
+                onPress={() => setMode("single")}
+              >
                 <Text style={[appStyles.tabText, mode === "single" ? appStyles.tabTextActive : undefined]}>Scatto singolo</Text>
               </Pressable>
-              <Pressable style={[appStyles.tabButton, mode === "sequence" ? appStyles.tabButtonActive : undefined]} onPress={() => setMode("sequence")}>
+              <Pressable
+                style={({ pressed }) => [
+                  appStyles.tabButton,
+                  mode === "sequence" ? appStyles.tabButtonActive : undefined,
+                  pressed ? appStyles.tabButtonPressed : undefined,
+                ]}
+                onPress={() => setMode("sequence")}
+              >
                 <Text style={[appStyles.tabText, mode === "sequence" ? appStyles.tabTextActive : undefined]}>Modalita sequenza</Text>
               </Pressable>
-              <Pressable style={[appStyles.tabButton, mode === "manual" ? appStyles.tabButtonActive : undefined]} onPress={() => setMode("manual")}>
+              <Pressable
+                style={({ pressed }) => [
+                  appStyles.tabButton,
+                  mode === "manual" ? appStyles.tabButtonActive : undefined,
+                  pressed ? appStyles.tabButtonPressed : undefined,
+                ]}
+                onPress={() => setMode("manual")}
+              >
                 <Text style={[appStyles.tabText, mode === "manual" ? appStyles.tabTextActive : undefined]}>Manuale</Text>
               </Pressable>
             </View>
 
             {mode === "single" ? (
-              <Pressable style={appStyles.button} onPress={captureSingle} disabled={loading || !selectedPoint || !!pendingPreview}>
+              <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={captureSingle} disabled={loading || !selectedPoint || !!pendingPreview}>
                 <Text style={appStyles.buttonText}>{loading ? "Elaborazione..." : "Scatta singolo"}</Text>
               </Pressable>
             ) : mode === "sequence" ? (
@@ -573,7 +621,7 @@ export function TemperatureScreen(props: Props) {
                     ? `Prossimo: ${currentSequencePoint.sort_order}. ${currentSequencePoint.name}`
                     : "Sequenza completata o non configurata"}
                 </Text>
-                <Pressable style={appStyles.button} onPress={openSequenceCamera} disabled={loading || !sequencePoints.length || !!pendingPreview}>
+                <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={openSequenceCamera} disabled={loading || !sequencePoints.length || !!pendingPreview}>
                   <Text style={appStyles.buttonText}>Apri camera sequenza</Text>
                 </Pressable>
               </>
@@ -587,7 +635,7 @@ export function TemperatureScreen(props: Props) {
                   {manualPresetValues(selectedPoint?.device_type).map((value) => (
                     <Pressable
                       key={`manual-preset-${value}`}
-                      style={appStyles.tabButton}
+                      style={({ pressed }) => [appStyles.tabButton, pressed ? appStyles.tabButtonPressed : undefined]}
                       onPress={() => void saveManualReading(String(value), false)}
                       disabled={!selectedPoint || savingManual}
                     >
@@ -615,7 +663,11 @@ export function TemperatureScreen(props: Props) {
                   onChangeText={setManualActionInput}
                   placeholder="Intervento eseguito"
                 />
-                <Pressable style={appStyles.buttonSecondary} onPress={() => void saveManualReading(manualOutOfRangeTempInput, true)} disabled={!selectedPoint || savingManual}>
+                <Pressable
+                  style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
+                  onPress={() => void saveManualReading(manualOutOfRangeTempInput, true)}
+                  disabled={!selectedPoint || savingManual}
+                >
                   <Text style={appStyles.buttonSecondaryText}>{savingManual ? "Salvataggio..." : "Registra fuori range"}</Text>
                 </Pressable>
               </>
@@ -631,10 +683,10 @@ export function TemperatureScreen(props: Props) {
                 {currentSequencePoint?.name || "Completata"}
               </Text>
               <View style={appStyles.tabsRow}>
-                <Pressable style={appStyles.button} onPress={takeSequenceShot} disabled={takingShot || !currentSequencePoint || !!pendingPreview}>
+                <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={takeSequenceShot} disabled={takingShot || !currentSequencePoint || !!pendingPreview}>
                   <Text style={appStyles.buttonText}>{takingShot ? "Scatto..." : "Scatta"}</Text>
                 </Pressable>
-                <Pressable style={appStyles.buttonSecondary} onPress={() => setSequenceCameraOpen(false)}>
+                <Pressable style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]} onPress={() => setSequenceCameraOpen(false)}>
                   <Text style={appStyles.buttonSecondaryText}>Fine sessione</Text>
                 </Pressable>
               </View>
@@ -665,11 +717,11 @@ export function TemperatureScreen(props: Props) {
                 </View>
               ) : null}
               <View style={appStyles.tabsRow}>
-                <Pressable style={appStyles.button} onPress={confirmPreview}>
+                <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={confirmPreview}>
                   <Text style={appStyles.buttonText}>Conferma e salva</Text>
                 </Pressable>
                 <Pressable
-                  style={appStyles.buttonSecondary}
+                  style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
                   onPress={() => {
                     setPendingPreview(null);
                     setConfirmTempInput("");

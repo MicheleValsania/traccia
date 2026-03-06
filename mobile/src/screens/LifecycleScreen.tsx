@@ -50,7 +50,11 @@ export function LifecycleScreen(props: Props) {
         {ACTIONS.map((candidate) => (
           <Pressable
             key={candidate}
-            style={[appStyles.tabButton, action === candidate ? appStyles.tabButtonActive : undefined]}
+            style={({ pressed }) => [
+              appStyles.tabButton,
+              action === candidate ? appStyles.tabButtonActive : undefined,
+              pressed ? appStyles.tabButtonPressed : undefined,
+            ]}
             onPress={() => setAction(candidate)}
           >
             <Text style={[appStyles.tabText, action === candidate ? appStyles.tabTextActive : undefined]}>{candidate}</Text>
@@ -67,7 +71,7 @@ export function LifecycleScreen(props: Props) {
       <Text style={appStyles.label}>Note</Text>
       <TextInput style={appStyles.input} value={note} onChangeText={setNote} />
 
-      <Pressable style={appStyles.button} onPress={submitTransform} disabled={!props.token || !lotId}>
+      <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={submitTransform} disabled={!props.token || !lotId}>
         <Text style={appStyles.buttonText}>Esegui trasformazione</Text>
       </Pressable>
       {result ? <Text style={appStyles.success}>{result}</Text> : null}

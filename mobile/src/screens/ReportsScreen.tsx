@@ -48,7 +48,7 @@ export function ReportsScreen(props: Props) {
   return (
     <View style={appStyles.card}>
       <Text style={appStyles.sectionTitle}>Alert</Text>
-      <Pressable style={appStyles.linkButton} onPress={refreshAlerts} disabled={!props.token || loadingAlerts}>
+      <Pressable style={({ pressed }) => [appStyles.linkButton, pressed ? appStyles.tabButtonPressed : undefined]} onPress={refreshAlerts} disabled={!props.token || loadingAlerts}>
         <Text style={appStyles.linkText}>{loadingAlerts ? "Aggiornamento..." : "Aggiorna alert"}</Text>
       </Pressable>
       {alerts.map((alert) => (
@@ -59,10 +59,14 @@ export function ReportsScreen(props: Props) {
           <Text>DLC: {alert.dlc_date || "-"}</Text>
           <Text>Stato: {alert.status}</Text>
           <View style={appStyles.tabsRow}>
-            <Pressable style={appStyles.buttonSecondary} onPress={() => markAlert(alert.id, "ACKED")} disabled={!props.token}>
+            <Pressable
+              style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
+              onPress={() => markAlert(alert.id, "ACKED")}
+              disabled={!props.token}
+            >
               <Text style={appStyles.buttonSecondaryText}>Ack</Text>
             </Pressable>
-            <Pressable style={appStyles.smallButton} onPress={() => markAlert(alert.id, "RESOLVED")} disabled={!props.token}>
+            <Pressable style={({ pressed }) => [appStyles.smallButton, pressed ? appStyles.buttonPressed : undefined]} onPress={() => markAlert(alert.id, "RESOLVED")} disabled={!props.token}>
               <Text style={appStyles.smallButtonText}>Risolto</Text>
             </Pressable>
           </View>
@@ -71,13 +75,13 @@ export function ReportsScreen(props: Props) {
       {!alerts.length ? <Text>Nessun alert attivo.</Text> : null}
 
       <Text style={appStyles.sectionTitle}>Report</Text>
-      <Pressable style={appStyles.linkButton} onPress={() => Linking.openURL(csv)} disabled={!props.token}>
+      <Pressable style={({ pressed }) => [appStyles.linkButton, pressed ? appStyles.tabButtonPressed : undefined]} onPress={() => Linking.openURL(csv)} disabled={!props.token}>
         <Text style={appStyles.linkText}>Apri export CSV</Text>
       </Pressable>
-      <Pressable style={appStyles.linkButton} onPress={() => Linking.openURL(pdf)} disabled={!props.token}>
+      <Pressable style={({ pressed }) => [appStyles.linkButton, pressed ? appStyles.tabButtonPressed : undefined]} onPress={() => Linking.openURL(pdf)} disabled={!props.token}>
         <Text style={appStyles.linkText}>Apri export PDF</Text>
       </Pressable>
-      <Pressable style={appStyles.linkButton} onPress={() => Linking.openURL(tempCsv)} disabled={!props.token}>
+      <Pressable style={({ pressed }) => [appStyles.linkButton, pressed ? appStyles.tabButtonPressed : undefined]} onPress={() => Linking.openURL(tempCsv)} disabled={!props.token}>
         <Text style={appStyles.linkText}>Apri registro temperature CSV</Text>
       </Pressable>
       {error ? <Text style={appStyles.error}>{error}</Text> : null}

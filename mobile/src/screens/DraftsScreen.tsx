@@ -31,7 +31,7 @@ export function DraftsScreen(props: Props) {
   return (
     <View style={appStyles.card}>
       <Text style={appStyles.sectionTitle}>Draft da convalidare (tablet/PC)</Text>
-      <Pressable style={appStyles.linkButton} onPress={props.refreshDrafts} disabled={!props.token}>
+      <Pressable style={({ pressed }) => [appStyles.linkButton, pressed ? appStyles.tabButtonPressed : undefined]} onPress={props.refreshDrafts} disabled={!props.token}>
         <Text style={appStyles.linkText}>Aggiorna elenco draft</Text>
       </Pressable>
       {props.drafts.map((lot) => (
@@ -43,7 +43,7 @@ export function DraftsScreen(props: Props) {
           <Text>Peso: {readAiField(lot, "weight") || "-"}</Text>
           <Text>Prodotto OCR: {readAiField(lot, "product_guess") || "-"}</Text>
           <WarningList warnings={lot.ocr_warnings || []} maxItems={2} />
-          <Pressable style={appStyles.smallButton} onPress={() => validateDraft(lot)} disabled={!props.token}>
+          <Pressable style={({ pressed }) => [appStyles.smallButton, pressed ? appStyles.buttonPressed : undefined]} onPress={() => validateDraft(lot)} disabled={!props.token}>
             <Text style={appStyles.smallButtonText}>Convalida</Text>
           </Pressable>
         </View>

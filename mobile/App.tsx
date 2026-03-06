@@ -94,7 +94,7 @@ export default function App() {
             <Text style={appStyles.sectionTitle}>Sessione attiva</Text>
             <Text style={appStyles.tokenPreview}>Utente: {username}</Text>
             <Text style={appStyles.tokenPreview}>Site: {siteCode}</Text>
-            <Pressable style={appStyles.buttonSecondary} onPress={logout}>
+            <Pressable style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]} onPress={logout}>
               <Text style={appStyles.buttonSecondaryText}>Logout</Text>
             </Pressable>
           </View>
@@ -105,7 +105,11 @@ export default function App() {
             {TABS.map((tab) => (
               <Pressable
                 key={tab.key}
-                style={[appStyles.tabButton, activeTab === tab.key ? appStyles.tabButtonActive : undefined]}
+                style={({ pressed }) => [
+                  appStyles.tabButton,
+                  activeTab === tab.key ? appStyles.tabButtonActive : undefined,
+                  pressed ? appStyles.tabButtonPressed : undefined,
+                ]}
                 onPress={() => setActiveTab(tab.key)}
               >
                 <Text style={[appStyles.tabText, activeTab === tab.key ? appStyles.tabTextActive : undefined]}>{tab.label}</Text>
