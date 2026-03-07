@@ -4,7 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import OuterRef, Q, Subquery
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import generics, status
@@ -1336,6 +1336,7 @@ class AlertListView(generics.ListAPIView):
         site_code = self.request.query_params.get("site_code")
         due_only = self.request.query_params.get("due_only", "1") == "1"
         include_resolved = self.request.query_params.get("include_resolved", "0") == "1"
+        collapse_by_lot = self.request.query_params.get("collapse_by_lot", "1") == "1"
         if site_code:
             site = Site.objects.filter(code=site_code).first()
             if not site:
@@ -1348,6 +1349,9 @@ class AlertListView(generics.ListAPIView):
             qs = qs.filter(trigger_at__lte=timezone.now())
         if not include_resolved:
             qs = qs.exclude(status="RESOLVED")
+        if collapse_by_lot:
+            latest_alert_id_for_lot = qs.filter(lot_id=OuterRef("lot_id")).order_by("-trigger_at", "-id").values("id")[:1]
+            qs = qs.filter(id=Subquery(latest_alert_id_for_lot)).order_by("trigger_at")
         return qs
 
 
