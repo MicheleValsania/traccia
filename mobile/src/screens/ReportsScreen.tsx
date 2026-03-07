@@ -10,6 +10,20 @@ type Props = {
   token: string;
 };
 
+const ALERT_LABELS: Record<AlertItem["alert_type"], string> = {
+  EXPIRY_D3: "Scade tra 3 giorni",
+  EXPIRY_D2: "Scade tra 2 giorni",
+  EXPIRY_D1: "Scade domani",
+  EXPIRED: "Scaduto",
+};
+
+function formatDateFr(dateIso: string | null): string {
+  if (!dateIso) return "-";
+  const [year, month, day] = dateIso.split("-");
+  if (!year || !month || !day) return dateIso;
+  return `${day}-${month}-${year}`;
+}
+
 export function ReportsScreen(props: Props) {
   const [alerts, setAlerts] = React.useState<AlertItem[]>([]);
   const [loadingAlerts, setLoadingAlerts] = React.useState(false);
@@ -53,10 +67,17 @@ export function ReportsScreen(props: Props) {
       </Pressable>
       {alerts.map((alert) => (
         <View key={alert.id} style={appStyles.draftRow}>
-          <Text>{alert.lot_code} - {alert.alert_type}</Text>
+          <Text>{alert.lot_code} - {ALERT_LABELS[alert.alert_type]}</Text>
           <Text>Fornitore: {alert.supplier_name || "-"}</Text>
           <Text>Lotto fornitore: {alert.supplier_lot_code || "-"}</Text>
-          <Text>DLC: {alert.dlc_date || "-"}</Text>
+          <Text>DLC: {formatDateFr(alert.dlc_date)}</Text>
+          {alert.days_to_expiry !== null ? (
+            <Text>
+              {alert.days_to_expiry < 0
+                ? `Ritardo: ${Math.abs(alert.days_to_expiry)} giorni`
+                : `Residuo: ${alert.days_to_expiry} giorni`}
+            </Text>
+          ) : null}
           <Text>Stato: {alert.status}</Text>
           <View style={appStyles.tabsRow}>
             <Pressable

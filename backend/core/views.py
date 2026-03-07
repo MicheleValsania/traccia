@@ -1327,7 +1327,7 @@ class AlertListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = Alert.objects.select_related("lot").order_by("trigger_at")
+        qs = Alert.objects.select_related("lot").filter(lot__status=LotStatus.ACTIVE).order_by("trigger_at")
         site_code = self.request.query_params.get("site_code")
         due_only = self.request.query_params.get("due_only", "1") == "1"
         include_resolved = self.request.query_params.get("include_resolved", "0") == "1"

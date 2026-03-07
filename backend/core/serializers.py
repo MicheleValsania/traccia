@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.utils import timezone
 
 from .models import (
     Alert,
@@ -354,9 +355,11 @@ class LabelPrintJobSerializer(serializers.ModelSerializer):
 
 class AlertSerializer(serializers.ModelSerializer):
     lot_code = serializers.CharField(source="lot.internal_lot_code", read_only=True)
+    lot_status = serializers.CharField(source="lot.status", read_only=True)
     supplier_name = serializers.CharField(source="lot.supplier_name", read_only=True)
     supplier_lot_code = serializers.CharField(source="lot.supplier_lot_code", read_only=True)
     dlc_date = serializers.DateField(source="lot.dlc_date", read_only=True)
+    days_to_expiry = serializers.SerializerMethodField()
 
     class Meta:
         model = Alert
@@ -364,13 +367,21 @@ class AlertSerializer(serializers.ModelSerializer):
             "id",
             "lot",
             "lot_code",
+            "lot_status",
             "supplier_name",
             "supplier_lot_code",
             "dlc_date",
+            "days_to_expiry",
             "alert_type",
             "trigger_at",
             "status",
         ]
+
+    def get_days_to_expiry(self, obj):
+        dlc_date = getattr(obj.lot, "dlc_date", None)
+        if not dlc_date:
+            return None
+        return (dlc_date - timezone.localdate()).days
 
 
 class AlertStatusUpdateSerializer(serializers.Serializer):
