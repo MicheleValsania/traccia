@@ -119,6 +119,7 @@ Note operative:
   - DLC mancante/non valida/nel passato/troppo lontana
   - peso mancante o implausibile
   - prodotto suggerito assente
+- Gli alert DLC vengono creati anche sui `DRAFT` quando la DLC e disponibile (non serve attendere la convalida).
 
 ### Worker OCR etichette (Drive -> Draft)
 

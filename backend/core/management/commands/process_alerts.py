@@ -5,13 +5,13 @@ from core.models import Alert, AlertStatus, LotStatus
 
 
 class Command(BaseCommand):
-    help = "Mark due alerts as SENT and auto-resolve alerts for non-active lots."
+    help = "Mark due alerts as SENT and auto-resolve alerts for closed lot statuses."
 
     def handle(self, *args, **options):
         now = timezone.now()
         resolved = (
             Alert.objects.filter(status__in=[AlertStatus.PENDING, AlertStatus.SENT, AlertStatus.ACKED])
-            .exclude(lot__status=LotStatus.ACTIVE)
+            .exclude(lot__status__in=[LotStatus.ACTIVE, LotStatus.DRAFT])
             .update(status=AlertStatus.RESOLVED)
         )
         sent = (

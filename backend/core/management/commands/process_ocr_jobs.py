@@ -84,6 +84,7 @@ class Command(BaseCommand):
         lot.ai_suggested = True
         lot.ai_payload = ai_payload
         lot.save(update_fields=["supplier_lot_code", "dlc_date", "ai_suggested", "ai_payload", "updated_at"])
+        lot.schedule_expiry_alerts()
 
         job.status = OcrJobStatus.DONE
         job.result = validated
