@@ -17,6 +17,7 @@ Implementazione iniziale allineata alle decisioni di progetto:
 - `backend/`: Django + DRF (API e regole Fase 1)
 - `mobile/`: Expo React Native (mobile-first capture rapido)
 - `doc/progetto/14_label_payload_contract.md`: contratto stampa etichette (lifecycle + fiches)
+- `doc/progetto/15_capture_worker_backup_workflow.md`: percorso dati foto/OCR, worker, registri, backup Drive
 - upstream handoff reference: `C:\Users\user\chefside\fiches-recettes\traceability_handoff.json`
 
 ## Backend - avvio locale
@@ -104,6 +105,7 @@ Note operative:
   - `ANTHROPIC_MODEL=claude-haiku-4-5-20251001`
   - `CLAUDE_RETRY_ATTEMPTS=3`
   - `CLAUDE_RETRY_BASE_SLEEP_S=0.8`
+  - `OCR_LABEL_ASYNC_ENABLED=1` (opzionale: OCR etichette tramite worker async)
 - In mancanza di env validi, il sistema usa fallback stub senza interrompere il flusso operativo
 - Drive upload e OCR devono restare automatici nel flusso di capture
 - Se sono presenti variabili service account (`GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` o `..._FILE`), il backend puo usarle come fallback.
@@ -117,6 +119,22 @@ Note operative:
   - DLC mancante/non valida/nel passato/troppo lontana
   - peso mancante o implausibile
   - prodotto suggerito assente
+
+### Worker OCR etichette (Drive -> Draft)
+
+- Comando worker:
+
+```powershell
+python manage.py process_ocr_jobs --limit 50
+```
+
+- Per riprocessare anche job falliti:
+
+```powershell
+python manage.py process_ocr_jobs --limit 50 --retry-failed
+```
+
+- Con `OCR_LABEL_ASYNC_ENABLED=1`, `POST /api/capture/label-photo` crea `OcrJob` in `PENDING` e il worker completa l'estrazione dai file su Drive.
 
 ### Alert processing operativo
 

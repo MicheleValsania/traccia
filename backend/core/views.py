@@ -1,4 +1,5 @@
 import base64
+import os
 from datetime import timedelta
 from decimal import Decimal
 
@@ -90,7 +91,6 @@ from .services import (
 
 # In core/views.py, aggiungi questa view temporanea
 from django.http import JsonResponse
-import os
 
 def debug_env(request):
     return JsonResponse({
@@ -260,18 +260,30 @@ class CaptureLabelView(APIView):
                 {"detail": "Drive upload failed.", "error": str(exc)[:300]},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        ocr_raw = run_label_ocr(file_name=data["file_name"], binary=binary, mime_type=mime_type)
-        ocr = OcrResultSerializer(data=ocr_raw)
-        ocr.is_valid(raise_exception=True)
-        warnings = build_ocr_warnings(ocr.validated_data)
-        ai_payload = {**ocr.validated_data, "warnings": warnings}
+        async_ocr = os.getenv("OCR_LABEL_ASYNC_ENABLED", "0") == "1"
+        warnings = []
+        ai_payload = {"warnings": warnings}
+        ocr_validated = {
+            "supplier_lot_code": "",
+            "dlc_date": "",
+            "weight": "",
+            "product_guess": "",
+            "provider": "pending_worker",
+        }
+        if not async_ocr:
+            ocr_raw = run_label_ocr(file_name=data["file_name"], binary=binary, mime_type=mime_type)
+            ocr = OcrResultSerializer(data=ocr_raw)
+            ocr.is_valid(raise_exception=True)
+            ocr_validated = ocr.validated_data
+            warnings = build_ocr_warnings(ocr_validated)
+            ai_payload = {**ocr_validated, "warnings": warnings}
 
         lot = Lot.objects.create(
             site=site,
             internal_lot_code=next_internal_code(site.code),
             supplier_name=data.get("supplier_name", ""),
-            supplier_lot_code=ocr.validated_data.get("supplier_lot_code", ""),
-            dlc_date=parse_date_or_none(ocr.validated_data.get("dlc_date", "")),
+            supplier_lot_code=ocr_validated.get("supplier_lot_code", ""),
+            dlc_date=parse_date_or_none(ocr_validated.get("dlc_date", "")),
             status=LotStatus.DRAFT,
             ai_suggested=True,
             ai_payload=ai_payload,
@@ -287,7 +299,12 @@ class CaptureLabelView(APIView):
             mime_type=mime_type,
         )
         OcrJob.objects.create(
-            site=site, asset=asset, lot=lot, status=OcrJobStatus.DONE, result=ocr.validated_data
+            site=site,
+            asset=asset,
+            lot=lot,
+            status=OcrJobStatus.PENDING if async_ocr else OcrJobStatus.DONE,
+            result=ocr_validated if not async_ocr else {},
+            error="",
         )
         log_audit_event(
             action="LOT_DRAFT_CREATED_FROM_CAPTURE",
@@ -298,14 +315,15 @@ class CaptureLabelView(APIView):
             payload={"internal_lot_code": lot.internal_lot_code, "drive_file_id": asset.drive_file_id},
         )
 
-        suggestions = suggest_products(site_id=str(site.id), product_guess=ocr.validated_data.get("product_guess", ""))
+        suggestions = suggest_products(site_id=str(site.id), product_guess=ocr_validated.get("product_guess", ""))
         return Response(
             {
                 "lot_id": str(lot.id),
                 "internal_lot_code": lot.internal_lot_code,
                 "draft_status": lot.status,
-                "ocr_result": ocr.validated_data,
-                "ocr_provider": ocr.validated_data.get("provider", "unknown"),
+                "ocr_pending": async_ocr,
+                "ocr_result": ocr_validated,
+                "ocr_provider": ocr_validated.get("provider", "unknown"),
                 "ocr_warnings": warnings,
                 "product_suggestions": suggestions,
                 "asset": {
