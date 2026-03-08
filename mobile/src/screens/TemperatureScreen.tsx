@@ -610,22 +610,27 @@ export function TemperatureScreen(props: Props) {
             </View>
 
             {mode === "single" ? (
-              <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={captureSingle} disabled={loading || !selectedPoint || !!pendingPreview}>
-                <Text style={appStyles.buttonText}>{loading ? "Elaborazione..." : "Scatta singolo"}</Text>
-              </Pressable>
+              <>
+                {!selectedPoint ? <Text style={appStyles.warn}>Seleziona prima un punto freddo.</Text> : null}
+                <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={captureSingle} disabled={loading || !!pendingPreview}>
+                  <Text style={appStyles.buttonText}>{loading ? "Elaborazione..." : "Scatta singolo"}</Text>
+                </Pressable>
+              </>
             ) : mode === "sequence" ? (
               <>
+                {!sequencePoints.length ? <Text style={appStyles.warn}>Configura almeno un punto freddo nel settore.</Text> : null}
                 <Text style={appStyles.tokenPreview}>
                   {currentSequencePoint
                     ? `Prossimo: ${currentSequencePoint.sort_order}. ${currentSequencePoint.name}`
                     : "Sequenza completata o non configurata"}
                 </Text>
-                <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={openSequenceCamera} disabled={loading || !sequencePoints.length || !!pendingPreview}>
+                <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={openSequenceCamera} disabled={loading || !!pendingPreview}>
                   <Text style={appStyles.buttonText}>Apri camera sequenza</Text>
                 </Pressable>
               </>
             ) : (
               <>
+                {!selectedPoint ? <Text style={appStyles.warn}>Seleziona prima un punto freddo per inserimento manuale.</Text> : null}
                 <Text style={appStyles.tokenPreview}>
                   Metodo manuale su: {selectedPoint ? `${selectedPoint.sort_order}. ${selectedPoint.name}` : "nessun punto selezionato"}
                 </Text>
