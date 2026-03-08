@@ -1,8 +1,10 @@
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
+import { SvgXml } from "react-native-svg";
 
 import { fetchDrafts, fetchMe, loginToken } from "./src/api";
+import { chefsideLogoXml } from "./src/assets/chefsideLogoXml";
 import { AuthCard } from "./src/components/AuthCard";
 import { CaptureScreen } from "./src/screens/CaptureScreen";
 import { DraftsScreen } from "./src/screens/DraftsScreen";
@@ -88,13 +90,16 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={appStyles.safe}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={token ? appStyles.safe : appStyles.authSafe}>
+      <StatusBar style={token ? "dark" : "light"} />
       <ScrollView contentContainerStyle={[appStyles.container, token ? { paddingBottom: 176 } : undefined]}>
         {!token ? (
-          <>
-            <Text style={appStyles.title}>Traceability Mobile</Text>
-            <Text style={appStyles.subtitle}>Accedi per usare l'app.</Text>
+          <View style={appStyles.authLanding}>
+            <View style={appStyles.authLogoCard}>
+              <SvgXml xml={chefsideLogoXml} width={220} height={66} />
+            </View>
+            <Text style={appStyles.authTitle}>Traccia HACCP</Text>
+            <Text style={appStyles.authSubtitle}>Controllo lotti, temperature, lifecycle e alert.</Text>
             <AuthCard
               username={username}
               setUsername={setUsername}
@@ -103,7 +108,7 @@ export default function App() {
               token={token}
               onLogin={login}
             />
-          </>
+          </View>
         ) : null}
 
         {token && activeTab === "camera" ? (

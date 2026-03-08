@@ -14,26 +14,28 @@ type Props = {
 
 export function AuthCard(props: Props) {
   return (
-    <View style={appStyles.card}>
-      <Text style={appStyles.sectionTitle}>Accesso</Text>
+    <View style={appStyles.authCard}>
+      <Text style={appStyles.authCardTitle}>Accesso</Text>
       <TextInput
-        style={appStyles.input}
+        style={appStyles.authInput}
         value={props.username}
         onChangeText={props.setUsername}
         autoCapitalize="none"
         placeholder="username"
+        placeholderTextColor="#8ba09d"
       />
       <TextInput
-        style={appStyles.input}
+        style={appStyles.authInput}
         value={props.password}
         onChangeText={props.setPassword}
         secureTextEntry
         placeholder="password"
+        placeholderTextColor="#8ba09d"
       />
-      <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={props.onLogin}>
-        <Text style={appStyles.buttonText}>{props.token ? "Aggiorna token" : "Login token"}</Text>
+      <Pressable style={({ pressed }) => [appStyles.authButton, pressed ? appStyles.authButtonPressed : undefined]} onPress={props.onLogin}>
+        <Text style={appStyles.authButtonText}>{props.token ? "Aggiorna token" : "Login token"}</Text>
       </Pressable>
-      {props.token ? <Text style={appStyles.tokenPreview}>Token attivo: {props.token.slice(0, 12)}...</Text> : null}
+      {props.token ? <Text style={appStyles.authTokenPreview}>Token attivo: {props.token.slice(0, 12)}...</Text> : null}
     </View>
   );
 }
