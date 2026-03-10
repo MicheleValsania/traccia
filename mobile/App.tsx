@@ -172,6 +172,7 @@ export default function App() {
                 }}
               >
                 <Text style={[appStyles.bottomNavIcon, activeTab === tab.key ? appStyles.bottomNavIconActive : undefined]}>{tab.icon}</Text>
+                <Text style={[appStyles.bottomNavText, activeTab === tab.key ? appStyles.bottomNavTextActive : undefined]}>{tab.label}</Text>
               </Pressable>
             ))}
           </View>
