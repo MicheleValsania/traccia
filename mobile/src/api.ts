@@ -108,11 +108,9 @@ export async function fetchDrafts(token: string, siteCode: string): Promise<Draf
 }
 
 export async function validateDraftLot(token: string, lot: DraftLot): Promise<void> {
-  if (!lot.suggestions[0]) {
-    throw new Error("Nessun prodotto suggerito disponibile.");
-  }
+  const suggestedProduct = lot.suggestions?.[0];
   const payload = {
-    fiche_product_id: lot.suggestions[0].id,
+    ...(suggestedProduct ? { fiche_product_id: suggestedProduct.id } : {}),
     supplier_lot_code: lot.supplier_lot_code,
     dlc_date: lot.dlc_date,
     validated_by: "mobile_operator",
