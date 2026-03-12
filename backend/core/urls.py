@@ -1,5 +1,18 @@
 from django.urls import path
 
+from .haccp_views import (
+    HaccpColdPointListView,
+    HaccpColdPointSyncView,
+    HaccpLifecycleEventListView,
+    HaccpOcrResultListView,
+    HaccpOcrResultValidateView,
+    HaccpScheduleDetailView,
+    HaccpScheduleListCreateView,
+    HaccpSectorListView,
+    HaccpSectorSyncView,
+    HaccpSiteListView,
+    HaccpSiteSyncView,
+)
 from .views import (
     AlertListView,
     AlertStatusUpdateView,
@@ -33,6 +46,17 @@ from .views import (
 )
 
 urlpatterns = [
+    path("v1/haccp/sites/", HaccpSiteListView.as_view(), name="haccp-site-list"),
+    path("v1/haccp/sites/sync/", HaccpSiteSyncView.as_view(), name="haccp-site-sync"),
+    path("v1/haccp/sectors/", HaccpSectorListView.as_view(), name="haccp-sector-list"),
+    path("v1/haccp/sectors/sync/", HaccpSectorSyncView.as_view(), name="haccp-sector-sync"),
+    path("v1/haccp/cold-points/", HaccpColdPointListView.as_view(), name="haccp-cold-point-list"),
+    path("v1/haccp/cold-points/sync/", HaccpColdPointSyncView.as_view(), name="haccp-cold-point-sync"),
+    path("v1/haccp/schedules/", HaccpScheduleListCreateView.as_view(), name="haccp-schedule-list-create"),
+    path("v1/haccp/schedules/<uuid:schedule_id>/", HaccpScheduleDetailView.as_view(), name="haccp-schedule-detail"),
+    path("v1/haccp/ocr-results/", HaccpOcrResultListView.as_view(), name="haccp-ocr-results"),
+    path("v1/haccp/ocr-results/<uuid:document_id>/validate/", HaccpOcrResultValidateView.as_view(), name="haccp-ocr-validate"),
+    path("v1/haccp/lifecycle-events/", HaccpLifecycleEventListView.as_view(), name="haccp-lifecycle-events"),
     path("debug/env", debug_env, name="debug-env"),
     path("auth/token", TokenLoginView.as_view(), name="auth-token"),
     path("auth/me", MeView.as_view(), name="auth-me"),

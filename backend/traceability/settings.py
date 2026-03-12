@@ -103,6 +103,8 @@ if not DEBUG:
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", os.getenv("TRACCIA_API_KEY", ""))
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.TokenAuthentication",

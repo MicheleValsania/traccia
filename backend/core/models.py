@@ -13,6 +13,7 @@ User = get_user_model()
 
 class Site(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    external_id = models.UUIDField(null=True, blank=True, unique=True)
     code = models.CharField(max_length=24, unique=True)
     name = models.CharField(max_length=255)
     timezone = models.CharField(max_length=64, default="Europe/Paris")
@@ -185,6 +186,12 @@ class OcrJobStatus(models.TextChoices):
     FAILED = "FAILED", "FAILED"
 
 
+class OcrValidationStatus(models.TextChoices):
+    PENDING = "pending", "pending"
+    VALIDATED = "validated", "validated"
+    REJECTED = "rejected", "rejected"
+
+
 class OcrJob(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="ocr_jobs")
@@ -195,6 +202,9 @@ class OcrJob(models.Model):
     status = models.CharField(max_length=16, choices=OcrJobStatus.choices, default=OcrJobStatus.PENDING)
     provider = models.CharField(max_length=32, default="claude")
     result = models.JSONField(default=dict, blank=True)
+    corrected_payload = models.JSONField(default=dict, blank=True)
+    validation_status = models.CharField(max_length=16, choices=OcrValidationStatus.choices, default=OcrValidationStatus.PENDING)
+    validated_at = models.DateTimeField(null=True, blank=True)
     error = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -237,6 +247,8 @@ class TemperatureReading(models.Model):
 
 class ColdSector(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    external_id = models.UUIDField(null=True, blank=True, unique=True)
+    external_code = models.CharField(max_length=64, blank=True, default="")
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="cold_sectors")
     name = models.CharField(max_length=120)
     sort_order = models.PositiveIntegerField(default=0)
@@ -264,6 +276,8 @@ class TemperatureRegister(models.Model):
 
 class ColdPoint(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    external_id = models.UUIDField(null=True, blank=True, unique=True)
+    external_code = models.CharField(max_length=64, blank=True, default="")
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="cold_points")
     sector = models.ForeignKey(ColdSector, on_delete=models.CASCADE, related_name="cold_points")
     name = models.CharField(max_length=120)
@@ -395,6 +409,58 @@ class LabelPrintJob(models.Model):
     payload = models.JSONField(default=dict, blank=True)
     created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="label_print_jobs")
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+
+class HaccpTaskType(models.TextChoices):
+    LABEL_PRINT = "label_print", "label_print"
+    TEMPERATURE_REGISTER = "temperature_register", "temperature_register"
+    CLEANING = "cleaning", "cleaning"
+
+
+class HaccpScheduleStatus(models.TextChoices):
+    PLANNED = "planned", "planned"
+    DONE = "done", "done"
+    SKIPPED = "skipped", "skipped"
+    CANCELLED = "cancelled", "cancelled"
+
+
+class HaccpSchedule(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="haccp_schedules")
+    sector = models.ForeignKey(ColdSector, null=True, blank=True, on_delete=models.SET_NULL, related_name="haccp_schedules")
+    cold_point = models.ForeignKey(ColdPoint, null=True, blank=True, on_delete=models.SET_NULL, related_name="haccp_schedules")
+    task_type = models.CharField(max_length=32, choices=HaccpTaskType.choices)
+    title = models.CharField(max_length=255)
+    area = models.CharField(max_length=128, blank=True, default="")
+    equipment_type = models.CharField(max_length=24, choices=TemperatureDeviceType.choices, blank=True, default="")
+    starts_at = models.DateTimeField()
+    ends_at = models.DateTimeField(null=True, blank=True)
+    recurrence_rule = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=16, choices=HaccpScheduleStatus.choices, default=HaccpScheduleStatus.PLANNED)
+    metadata = models.JSONField(default=dict, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_haccp_schedules")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-starts_at", "-created_at"]
+
+    def save(self, *args, **kwargs):
+        if self.cold_point_id:
+            self.sector = self.cold_point.sector
+            self.site = self.cold_point.site
+        elif self.sector_id:
+            self.site = self.sector.site
+        if not self.area:
+            parts = []
+            if self.sector_id:
+                parts.append(self.sector.name)
+            if self.cold_point_id:
+                parts.append(self.cold_point.name)
+            self.area = " / ".join(parts)
+        super().save(*args, **kwargs)
 
 
 class LotDocumentMatchStatus(models.TextChoices):
