@@ -124,6 +124,17 @@ def _resolve_cold_point(site: Site, identifier: str | None = None, *, external_c
     return None
 
 
+def _ensure_admin_memberships(site: Site) -> None:
+    admin_users = (
+        Membership.objects.filter(role=MembershipRole.ADMIN)
+        .select_related("user")
+        .values_list("user_id", flat=True)
+        .distinct()
+    )
+    for user_id in admin_users:
+        Membership.objects.get_or_create(user_id=user_id, site=site, defaults={"role": MembershipRole.ADMIN})
+
+
 class HaccpSiteListView(APIView):
     permission_classes = [AllowAny]
 
@@ -171,6 +182,7 @@ class HaccpSiteSyncView(APIView):
                     name=item["name"].strip(),
                     timezone=item.get("timezone") or "Europe/Paris",
                 )
+            _ensure_admin_memberships(site)
             rows.append(serialize_site(site))
         return Response({"created": created, "updated": updated, "results": rows}, status=status.HTTP_200_OK)
 

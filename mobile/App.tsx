@@ -13,7 +13,7 @@ import { LifecycleScreen } from "./src/screens/LifecycleScreen";
 import { ReportsScreen } from "./src/screens/ReportsScreen";
 import { TemperatureScreen } from "./src/screens/TemperatureScreen";
 import { appStyles } from "./src/styles";
-import { CaptureResponse, DraftLot, TabKey } from "./src/types";
+import { CaptureResponse, DraftLot, MeMembership, TabKey } from "./src/types";
 
 const TABS: Array<{ key: TabKey; icon: string; label: string }> = [
   { key: "camera", icon: "\u{1F4F7}", label: "Camera" },
@@ -31,6 +31,7 @@ export default function App() {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
+  const [memberships, setMemberships] = useState<MeMembership[]>([]);
   const [captureResult, setCaptureResult] = useState<CaptureResponse | null>(null);
   const [drafts, setDrafts] = useState<DraftLot[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,7 +51,9 @@ export default function App() {
       setToken(nextToken);
       try {
         const profile = await fetchMe(nextToken);
-        const firstMembership = profile.memberships[0];
+        const nextMemberships = Array.isArray(profile.memberships) ? profile.memberships : [];
+        setMemberships(nextMemberships);
+        const firstMembership = nextMemberships[0];
         if (firstMembership) {
           setSiteCode(firstMembership.site_code);
         }
@@ -80,6 +83,7 @@ export default function App() {
     setError("");
     setDrafts([]);
     setCaptureResult(null);
+    setMemberships([]);
     setActiveTab("camera");
   }
 
@@ -146,6 +150,25 @@ export default function App() {
             <Text style={appStyles.sectionTitle}>Parametri</Text>
             <Text style={appStyles.tokenPreview}>Utente: {username}</Text>
             <Text style={appStyles.tokenPreview}>Site attivo: {siteCode}</Text>
+            {memberships.length > 1 ? (
+              <View style={appStyles.tabsRow}>
+                {memberships.map((membership) => (
+                  <Pressable
+                    key={`${membership.site_code}-${membership.role}`}
+                    style={({ pressed }) => [
+                      appStyles.tabButton,
+                      membership.site_code === siteCode ? appStyles.tabButtonActive : undefined,
+                      pressed ? appStyles.tabButtonPressed : undefined,
+                    ]}
+                    onPress={() => setSiteCode(membership.site_code)}
+                  >
+                    <Text style={[appStyles.tabText, membership.site_code === siteCode ? appStyles.tabTextActive : undefined]}>
+                      {membership.site_name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             <Pressable style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]} onPress={logout}>
               <Text style={appStyles.buttonSecondaryText}>Logout</Text>
             </Pressable>

@@ -165,6 +165,8 @@ export type MeResponse = {
   memberships: Array<{ site_code: string; site_name: string; role: string }>;
 };
 
+export type MeMembership = MeResponse["memberships"][number];
+
 export type LabelTemplateType = "RAW_MATERIAL" | "PREPARATION" | "TRANSFORMATION";
 export type LabelShelfLifeUnit = "hours" | "days" | "months";
 
