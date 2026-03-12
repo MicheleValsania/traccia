@@ -44,19 +44,27 @@ export default function App() {
     };
   }, []);
 
+  async function refreshProfile(nextToken = token) {
+    if (!nextToken) return;
+    const profile = await fetchMe(nextToken);
+    const nextMemberships = Array.isArray(profile.memberships) ? profile.memberships : [];
+    setMemberships(nextMemberships);
+    const hasCurrentSite = nextMemberships.some((membership) => membership.site_code === siteCode);
+    if (!hasCurrentSite) {
+      const firstMembership = nextMemberships[0];
+      if (firstMembership) {
+        setSiteCode(firstMembership.site_code);
+      }
+    }
+  }
+
   async function login() {
     setError("");
     try {
       const nextToken = await loginToken(username, password);
       setToken(nextToken);
       try {
-        const profile = await fetchMe(nextToken);
-        const nextMemberships = Array.isArray(profile.memberships) ? profile.memberships : [];
-        setMemberships(nextMemberships);
-        const firstMembership = nextMemberships[0];
-        if (firstMembership) {
-          setSiteCode(firstMembership.site_code);
-        }
+        await refreshProfile(nextToken);
       } catch {
         // Keep current site code if profile loading fails.
       }
@@ -150,7 +158,8 @@ export default function App() {
             <Text style={appStyles.sectionTitle}>Parametri</Text>
             <Text style={appStyles.tokenPreview}>Utente: {username}</Text>
             <Text style={appStyles.tokenPreview}>Site attivo: {siteCode}</Text>
-            {memberships.length > 1 ? (
+            <Text style={appStyles.tokenPreview}>Siti disponibili</Text>
+            {memberships.length ? (
               <View style={appStyles.tabsRow}>
                 {memberships.map((membership) => (
                   <Pressable
@@ -168,7 +177,22 @@ export default function App() {
                   </Pressable>
                 ))}
               </View>
-            ) : null}
+            ) : (
+              <Text style={appStyles.tokenPreview}>Nessun site disponibile nel profilo.</Text>
+            )}
+            <Pressable
+              style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
+              onPress={async () => {
+                try {
+                  setError("");
+                  await refreshProfile();
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : "Errore caricamento profilo.");
+                }
+              }}
+            >
+              <Text style={appStyles.buttonSecondaryText}>Ricarica siti</Text>
+            </Pressable>
             <Pressable style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]} onPress={logout}>
               <Text style={appStyles.buttonSecondaryText}>Logout</Text>
             </Pressable>

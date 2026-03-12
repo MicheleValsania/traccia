@@ -1507,13 +1507,20 @@ class MeView(APIView):
 
     def get(self, request):
         memberships = Membership.objects.filter(user=request.user).select_related("site")
+        membership_rows = [
+            {"site_code": m.site.code, "site_name": m.site.name, "role": m.role}
+            for m in memberships
+        ]
+        if request.user.is_superuser:
+            existing_codes = {row["site_code"] for row in membership_rows}
+            for site in Site.objects.all().order_by("name"):
+                if site.code in existing_codes:
+                    continue
+                membership_rows.append({"site_code": site.code, "site_name": site.name, "role": MembershipRole.ADMIN})
         return Response(
             {
                 "username": request.user.username,
                 "is_superuser": request.user.is_superuser,
-                "memberships": [
-                    {"site_code": m.site.code, "site_name": m.site.name, "role": m.role}
-                    for m in memberships
-                ],
+                "memberships": membership_rows,
             }
         )

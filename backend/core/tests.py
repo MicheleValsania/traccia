@@ -1,6 +1,7 @@
 from datetime import date
 import uuid
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -22,6 +23,8 @@ from core.models import (
     Site,
     TemperatureDeviceType,
 )
+
+User = get_user_model()
 
 
 @override_settings(INTERNAL_API_KEY="test-haccp-key")
@@ -191,3 +194,19 @@ class HaccpApiTests(TestCase):
         self.assertEqual(rows[0]["event_id"], str(event.id))
         self.assertEqual(rows[0]["lot"]["supplier_lot_code"], "SUP-LOT-1")
         self.assertEqual(rows[0]["qty_unit"], "kg")
+
+    def test_me_returns_all_sites_for_superuser(self):
+        Site.objects.create(code="SECOND", name="Second Site")
+        user = User.objects.create_user(username="super", password="test123")
+        user.is_staff = True
+        user.is_superuser = True
+        user.save()
+        self.client.force_authenticate(user=user)
+
+        resp = self.client.get("/api/auth/me")
+
+        self.assertEqual(resp.status_code, 200)
+        memberships = resp.json()["memberships"]
+        site_codes = {row["site_code"] for row in memberships}
+        self.assertIn("MAIN", site_codes)
+        self.assertIn("SECOND", site_codes)
