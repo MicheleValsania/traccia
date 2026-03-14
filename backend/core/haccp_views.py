@@ -674,6 +674,29 @@ class HaccpLabelProfileDetailView(APIView):
         )
         return Response(serialize_label_profile(profile), status=status.HTTP_200_OK)
 
+    @transaction.atomic
+    def delete(self, request, profile_id):
+        profile = _label_profile_queryset().filter(id=profile_id).first()
+        if not profile:
+            return Response({"detail": "Label profile not found."}, status=status.HTTP_404_NOT_FOUND)
+        auth_error = _ensure_access(request, profile.site, write=True)
+        if auth_error:
+            return auth_error
+        site = profile.site
+        name = profile.name
+        category = profile.category
+        object_id = str(profile.id)
+        profile.delete()
+        log_audit_event(
+            action="HACCP_LABEL_PROFILE_DELETED",
+            request=request,
+            site=site,
+            object_type="LabelProfile",
+            object_id=object_id,
+            payload={"name": name, "category": category},
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class HaccpLabelSessionListCreateView(APIView):
     permission_classes = [AllowAny]
