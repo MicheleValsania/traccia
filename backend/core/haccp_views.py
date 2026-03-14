@@ -43,7 +43,9 @@ from .models import (
     OcrValidationStatus,
     Site,
     TemperatureRegister,
+    TemperatureReading,
 )
+from .serializers import TemperatureReadingSerializer
 from .services import log_audit_event
 
 SITE_READ_ROLES = {
@@ -450,6 +452,28 @@ class HaccpColdPointSyncView(APIView):
                 )
             rows.append(serialize_cold_point(point))
         return Response({"created": created, "updated": updated, "results": rows}, status=status.HTTP_200_OK)
+
+
+class HaccpTemperatureReadingListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        site = _resolve_site(request.query_params.get("site"))
+        if not site:
+            return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_access(request, site)
+        if auth_error:
+            return auth_error
+        limit = int(request.query_params.get("limit") or 120)
+        sector = _resolve_sector(site, request.query_params.get("sector"), external_code=request.query_params.get("sector_code", ""))
+        cold_point = _resolve_cold_point(site, request.query_params.get("cold_point"), external_code=request.query_params.get("cold_point_code", ""))
+        qs = TemperatureReading.objects.select_related("register", "cold_point__sector").filter(site=site)
+        if sector:
+            qs = qs.filter(cold_point__sector=sector)
+        if cold_point:
+            qs = qs.filter(cold_point=cold_point)
+        qs = qs.order_by("-observed_at", "-created_at")[:limit]
+        return Response({"results": TemperatureReadingSerializer(qs, many=True).data}, status=status.HTTP_200_OK)
 
 
 def _schedule_queryset():

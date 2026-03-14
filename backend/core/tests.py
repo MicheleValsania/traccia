@@ -25,6 +25,7 @@ from core.models import (
     OcrJobStatus,
     OcrValidationStatus,
     Site,
+    TemperatureRegister,
     TemperatureReading,
     TemperatureDeviceType,
 )
@@ -106,6 +107,24 @@ class HaccpApiTests(TestCase):
         point.refresh_from_db()
         self.assertEqual(point.name, "Cella centrale")
         self.assertEqual(point.device_type, "COLD_ROOM")
+
+        TemperatureReading.objects.create(
+            site=self.site,
+            register=TemperatureRegister.objects.get(sector=sector),
+            cold_point=point,
+            device_type=TemperatureDeviceType.COLD_ROOM,
+            device_label="Camera 1",
+            reference_temperature_celsius="3.00",
+            temperature_celsius="2.40",
+            source="camera_upload",
+            confidence="0.91",
+            observed_at=timezone.now(),
+        )
+
+        resp = self.client.get(f"/api/v1/haccp/temperature-readings/?site={self.external_site_id}&limit=10")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.json()["results"]), 1)
+        self.assertEqual(resp.json()["results"][0]["cold_point_name"], "Cella centrale")
 
         schedule_id = uuid.uuid4()
         starts_at = timezone.now().replace(microsecond=0)
