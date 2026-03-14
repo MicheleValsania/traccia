@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .haccp_serializers import (
+    HaccpColdPointSyncItemSerializer,
     HaccpColdPointSyncSerializer,
     HaccpLabelProfilePatchSerializer,
     HaccpLabelProfileWriteSerializer,
@@ -17,6 +18,7 @@ from .haccp_serializers import (
     HaccpOcrValidationSerializer,
     HaccpSchedulePatchSerializer,
     HaccpScheduleWriteSerializer,
+    HaccpSectorSyncItemSerializer,
     HaccpSectorSyncSerializer,
     HaccpSiteSyncSerializer,
     serialize_cold_point,
@@ -254,6 +256,66 @@ class HaccpSectorSyncView(APIView):
         return Response({"created": created, "updated": updated, "results": rows}, status=status.HTTP_200_OK)
 
 
+class HaccpSectorDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    @transaction.atomic
+    def patch(self, request, sector_id):
+        sector = ColdSector.objects.select_related("site").filter(id=sector_id).first()
+        if not sector:
+            return Response({"detail": "Sector not found."}, status=status.HTTP_404_NOT_FOUND)
+        auth_error = _ensure_access(request, sector.site, write=True)
+        if auth_error:
+            return auth_error
+        serializer = HaccpSectorSyncItemSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        if "name" in data:
+            sector.name = data["name"].strip()
+        if "external_code" in data:
+            sector.external_code = data.get("external_code", "")
+        if "sort_order" in data:
+            sector.sort_order = data.get("sort_order", 0)
+        if "is_active" in data:
+            sector.is_active = data.get("is_active", True)
+        sector.save()
+        register = TemperatureRegister.objects.filter(sector=sector).first()
+        if register:
+            register.name = sector.name
+            register.save(update_fields=["name", "updated_at"])
+        log_audit_event(
+            action="HACCP_SECTOR_UPDATED",
+            request=request,
+            site=sector.site,
+            object_type="ColdSector",
+            object_id=str(sector.id),
+            payload={"name": sector.name, "external_code": sector.external_code, "is_active": sector.is_active},
+        )
+        return Response(serialize_sector(sector), status=status.HTTP_200_OK)
+
+    @transaction.atomic
+    def delete(self, request, sector_id):
+        sector = ColdSector.objects.select_related("site").filter(id=sector_id).first()
+        if not sector:
+            return Response({"detail": "Sector not found."}, status=status.HTTP_404_NOT_FOUND)
+        auth_error = _ensure_access(request, sector.site, write=True)
+        if auth_error:
+            return auth_error
+        site = sector.site
+        name = sector.name
+        object_id = str(sector.id)
+        sector.delete()
+        log_audit_event(
+            action="HACCP_SECTOR_DELETED",
+            request=request,
+            site=site,
+            object_type="ColdSector",
+            object_id=object_id,
+            payload={"name": name},
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class HaccpColdPointListView(APIView):
     permission_classes = [AllowAny]
 
@@ -270,6 +332,73 @@ class HaccpColdPointListView(APIView):
             qs = qs.filter(sector=sector)
         qs = qs.order_by("sector__sort_order", "sort_order", "name")
         return Response({"results": [serialize_cold_point(row) for row in qs]}, status=status.HTTP_200_OK)
+
+
+class HaccpColdPointDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    @transaction.atomic
+    def patch(self, request, point_id):
+        point = ColdPoint.objects.select_related("site", "sector").filter(id=point_id).first()
+        if not point:
+            return Response({"detail": "Cold point not found."}, status=status.HTTP_404_NOT_FOUND)
+        auth_error = _ensure_access(request, point.site, write=True)
+        if auth_error:
+            return auth_error
+        serializer = HaccpColdPointSyncItemSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        if "sector" in data:
+            sector = _resolve_sector(point.site, str(data["sector"]))
+            if not sector:
+                return Response({"detail": "Unknown sector."}, status=status.HTTP_400_BAD_REQUEST)
+            point.sector = sector
+        if "name" in data:
+            point.name = data["name"].strip()
+        if "external_code" in data:
+            point.external_code = data.get("external_code", "")
+        if "equipment_type" in data:
+            point.device_type = data.get("equipment_type") or point.device_type
+        if "sort_order" in data:
+            point.sort_order = data.get("sort_order", 0)
+        if "min_temp_celsius" in data:
+            point.min_temp_celsius = data.get("min_temp_celsius")
+        if "max_temp_celsius" in data:
+            point.max_temp_celsius = data.get("max_temp_celsius")
+        if "is_active" in data:
+            point.is_active = data.get("is_active", True)
+        point.save()
+        log_audit_event(
+            action="HACCP_COLD_POINT_UPDATED",
+            request=request,
+            site=point.site,
+            object_type="ColdPoint",
+            object_id=str(point.id),
+            payload={"name": point.name, "equipment_type": point.device_type, "sector_id": str(point.sector_id)},
+        )
+        return Response(serialize_cold_point(point), status=status.HTTP_200_OK)
+
+    @transaction.atomic
+    def delete(self, request, point_id):
+        point = ColdPoint.objects.select_related("site", "sector").filter(id=point_id).first()
+        if not point:
+            return Response({"detail": "Cold point not found."}, status=status.HTTP_404_NOT_FOUND)
+        auth_error = _ensure_access(request, point.site, write=True)
+        if auth_error:
+            return auth_error
+        site = point.site
+        name = point.name
+        object_id = str(point.id)
+        point.delete()
+        log_audit_event(
+            action="HACCP_COLD_POINT_DELETED",
+            request=request,
+            site=site,
+            object_type="ColdPoint",
+            object_id=object_id,
+            payload={"name": name},
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class HaccpColdPointSyncView(APIView):

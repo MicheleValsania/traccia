@@ -88,6 +88,25 @@ class HaccpApiTests(TestCase):
         point = ColdPoint.objects.get(external_id=point_external_id)
         self.assertEqual(point.name, "Frigo 1")
 
+        resp = self.client.patch(
+            f"/api/v1/haccp/sectors/{sector.id}/",
+            {"name": "Garage", "is_active": True},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        sector.refresh_from_db()
+        self.assertEqual(sector.name, "Garage")
+
+        resp = self.client.patch(
+            f"/api/v1/haccp/cold-points/{point.id}/",
+            {"name": "Cella centrale", "equipment_type": "COLD_ROOM"},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        point.refresh_from_db()
+        self.assertEqual(point.name, "Cella centrale")
+        self.assertEqual(point.device_type, "COLD_ROOM")
+
         schedule_id = uuid.uuid4()
         starts_at = timezone.now().replace(microsecond=0)
         resp = self.client.post(
@@ -125,6 +144,14 @@ class HaccpApiTests(TestCase):
         resp = self.client.delete(f"/api/v1/haccp/schedules/{schedule_id}/")
         self.assertEqual(resp.status_code, 204)
         self.assertFalse(HaccpSchedule.objects.filter(id=schedule_id).exists())
+
+        resp = self.client.delete(f"/api/v1/haccp/cold-points/{point.id}/")
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(ColdPoint.objects.filter(id=point.id).exists())
+
+        resp = self.client.delete(f"/api/v1/haccp/sectors/{sector.id}/")
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(ColdSector.objects.filter(id=sector.id).exists())
 
     def test_ocr_queue_and_validate(self):
         lot = Lot.objects.create(

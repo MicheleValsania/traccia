@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .haccp_views import (
+    HaccpColdPointDetailView,
     HaccpColdPointListView,
     HaccpColdPointSyncView,
     HaccpLabelProfileDetailView,
@@ -11,6 +12,7 @@ from .haccp_views import (
     HaccpOcrResultValidateView,
     HaccpScheduleDetailView,
     HaccpScheduleListCreateView,
+    HaccpSectorDetailView,
     HaccpSectorListView,
     HaccpSectorSyncView,
     HaccpSiteListView,
@@ -52,8 +54,10 @@ urlpatterns = [
     path("v1/haccp/sites/", HaccpSiteListView.as_view(), name="haccp-site-list"),
     path("v1/haccp/sites/sync/", HaccpSiteSyncView.as_view(), name="haccp-site-sync"),
     path("v1/haccp/sectors/", HaccpSectorListView.as_view(), name="haccp-sector-list"),
+    path("v1/haccp/sectors/<uuid:sector_id>/", HaccpSectorDetailView.as_view(), name="haccp-sector-detail"),
     path("v1/haccp/sectors/sync/", HaccpSectorSyncView.as_view(), name="haccp-sector-sync"),
     path("v1/haccp/cold-points/", HaccpColdPointListView.as_view(), name="haccp-cold-point-list"),
+    path("v1/haccp/cold-points/<uuid:point_id>/", HaccpColdPointDetailView.as_view(), name="haccp-cold-point-detail"),
     path("v1/haccp/cold-points/sync/", HaccpColdPointSyncView.as_view(), name="haccp-cold-point-sync"),
     path("v1/haccp/schedules/", HaccpScheduleListCreateView.as_view(), name="haccp-schedule-list-create"),
     path("v1/haccp/schedules/<uuid:schedule_id>/", HaccpScheduleDetailView.as_view(), name="haccp-schedule-detail"),
