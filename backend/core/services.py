@@ -469,6 +469,15 @@ def _normalize_temperature_celsius(value: str) -> float | None:
     return round(temp, 2)
 
 
+def normalize_temperature_unit(value: str | None) -> str:
+    normalized = (value or "").strip().lower().replace("°", "")
+    if normalized in {"", "c", "celsius", "centigrade"}:
+        return "C"
+    if normalized in {"f", "fahrenheit"}:
+        return "F"
+    return "C"
+
+
 def _detect_device_type(text: str) -> str:
     normalized = (text or "").strip().lower()
     if any(token in normalized for token in ["freezer", "congel", "surgel", "negative"]):
