@@ -19,7 +19,7 @@ from .models import (
     TemperatureRoute,
     TemperatureRouteStep,
 )
-from .services import parse_date_or_none, suggest_products
+from .services import normalize_temperature_unit, parse_date_or_none, suggest_products
 
 
 class FicheImportSerializer(serializers.Serializer):
@@ -74,6 +74,10 @@ class TemperatureReadingSerializer(serializers.ModelSerializer):
     cold_point_name = serializers.CharField(source="cold_point.name", read_only=True)
     sector_id = serializers.UUIDField(source="cold_point.sector.id", read_only=True)
     sector_name = serializers.CharField(source="cold_point.sector.name", read_only=True)
+    unit = serializers.SerializerMethodField()
+
+    def get_unit(self, obj):
+        return normalize_temperature_unit(getattr(obj, "unit", ""))
 
     class Meta:
         model = TemperatureReading
@@ -284,6 +288,7 @@ class LabelProfileSerializer(serializers.ModelSerializer):
             "id",
             "site_code",
             "name",
+            "category",
             "template_type",
             "shelf_life_value",
             "shelf_life_unit",
@@ -301,6 +306,7 @@ class LabelProfileSerializer(serializers.ModelSerializer):
 class LabelProfileWriteSerializer(serializers.Serializer):
     site_code = serializers.CharField()
     name = serializers.CharField(max_length=120)
+    category = serializers.CharField(max_length=120, required=False, allow_blank=True, default="")
     template_type = serializers.ChoiceField(choices=LabelTemplateType.choices, required=False, default=LabelTemplateType.PREPARATION)
     shelf_life_value = serializers.IntegerField(required=False, min_value=1, default=1)
     shelf_life_unit = serializers.ChoiceField(choices=LabelShelfLifeUnit.choices, required=False, default=LabelShelfLifeUnit.DAYS)
@@ -314,6 +320,7 @@ class LabelProfileWriteSerializer(serializers.Serializer):
 
 class LabelProfileUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=120, required=False)
+    category = serializers.CharField(max_length=120, required=False, allow_blank=True)
     template_type = serializers.ChoiceField(choices=LabelTemplateType.choices, required=False)
     shelf_life_value = serializers.IntegerField(required=False, min_value=1)
     shelf_life_unit = serializers.ChoiceField(choices=LabelShelfLifeUnit.choices, required=False)

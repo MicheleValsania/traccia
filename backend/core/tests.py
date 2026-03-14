@@ -13,14 +13,19 @@ from core.models import (
     ColdSector,
     HaccpSchedule,
     HaccpScheduleStatus,
+    LabelPrintJob,
+    LabelProfile,
     Lot,
     LotEvent,
     LotEventType,
     LotStatus,
+    Membership,
+    MembershipRole,
     OcrJob,
     OcrJobStatus,
     OcrValidationStatus,
     Site,
+    TemperatureReading,
     TemperatureDeviceType,
 )
 
@@ -195,6 +200,52 @@ class HaccpApiTests(TestCase):
         self.assertEqual(rows[0]["lot"]["supplier_lot_code"], "SUP-LOT-1")
         self.assertEqual(rows[0]["qty_unit"], "kg")
 
+    def test_haccp_label_profile_and_session_adapter(self):
+        resp = self.client.post(
+            "/api/v1/haccp/label-profiles/",
+            {
+                "site": str(self.external_site_id),
+                "name": "Supreme poulet",
+                "category": "Carni",
+                "template_type": "TRANSFORMATION",
+                "shelf_life_value": 3,
+                "shelf_life_unit": "days",
+                "packaging": "sottovuoto",
+                "storage_hint": "0/+3 C",
+                "allergens_text": "Lait",
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        payload = resp.json()
+        self.assertEqual(payload["name"], "Supreme poulet")
+        self.assertEqual(payload["category"], "Carni")
+        profile = LabelProfile.objects.get(name="Supreme poulet")
+
+        resp = self.client.get(f"/api/v1/haccp/label-profiles/?site={self.external_site_id}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.json()["results"]), 1)
+
+        resp = self.client.post(
+            "/api/v1/haccp/label-sessions/",
+            {
+                "site": str(self.external_site_id),
+                "profile_id": str(profile.id),
+                "quantity": 12,
+                "source_lot_code": "MAIN-LOT-01",
+                "status": "planned",
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.json()["profile_name"], "Supreme poulet")
+        self.assertEqual(resp.json()["quantity"], 12)
+        self.assertEqual(LabelPrintJob.objects.count(), 1)
+
+        resp = self.client.get(f"/api/v1/haccp/label-sessions/?site={self.external_site_id}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.json()["results"]), 1)
+
     def test_me_returns_all_sites_for_superuser(self):
         Site.objects.create(code="SECOND", name="Second Site")
         user = User.objects.create_user(username="super", password="test123")
@@ -210,3 +261,51 @@ class HaccpApiTests(TestCase):
         site_codes = {row["site_code"] for row in memberships}
         self.assertIn("MAIN", site_codes)
         self.assertIn("SECOND", site_codes)
+
+    def test_label_profile_category_roundtrip(self):
+        user = User.objects.create_user(username="manager", password="test123")
+        Membership.objects.create(user=user, site=self.site, role=MembershipRole.MANAGER)
+        self.client.force_authenticate(user=user)
+
+        resp = self.client.post(
+            "/api/labels/profiles",
+            {
+                "site_code": self.site.code,
+                "name": "Sauce vierge",
+                "category": "Salse",
+                "template_type": "PREPARATION",
+                "shelf_life_value": 3,
+                "shelf_life_unit": "days",
+            },
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.json()["category"], "Salse")
+
+        resp = self.client.get("/api/labels/profiles", {"site_code": self.site.code})
+
+        self.assertEqual(resp.status_code, 200)
+        rows = resp.json()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["name"], "Sauce vierge")
+        self.assertEqual(rows[0]["category"], "Salse")
+
+    def test_temperature_list_normalizes_unit_to_celsius(self):
+        user = User.objects.create_user(username="operator", password="test123")
+        Membership.objects.create(user=user, site=self.site, role=MembershipRole.OPERATOR)
+        self.client.force_authenticate(user=user)
+        TemperatureReading.objects.create(
+            site=self.site,
+            device_type=TemperatureDeviceType.FRIDGE,
+            device_label="Frigo 1",
+            temperature_celsius="4.00",
+            unit="celsius",
+        )
+
+        resp = self.client.get("/api/temperatures", {"site_code": self.site.code, "limit": 20})
+
+        self.assertEqual(resp.status_code, 200)
+        rows = resp.json()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["unit"], "C")

@@ -11,12 +11,17 @@ from rest_framework.views import APIView
 
 from .haccp_serializers import (
     HaccpColdPointSyncSerializer,
+    HaccpLabelProfilePatchSerializer,
+    HaccpLabelProfileWriteSerializer,
+    HaccpLabelSessionWriteSerializer,
     HaccpOcrValidationSerializer,
     HaccpSchedulePatchSerializer,
     HaccpScheduleWriteSerializer,
     HaccpSectorSyncSerializer,
     HaccpSiteSyncSerializer,
     serialize_cold_point,
+    serialize_label_profile,
+    serialize_label_session,
     serialize_schedule,
     serialize_sector,
     serialize_site,
@@ -26,6 +31,9 @@ from .models import (
     ColdSector,
     HaccpSchedule,
     HaccpScheduleStatus,
+    LabelPrintJob,
+    LabelProfile,
+    Lot,
     LotEvent,
     Membership,
     MembershipRole,
@@ -319,6 +327,25 @@ def _schedule_queryset():
     return HaccpSchedule.objects.select_related("site", "sector", "cold_point")
 
 
+def _compute_label_dlc_date(*, production_date, shelf_life_value: int, shelf_life_unit: str):
+    if shelf_life_unit == "hours":
+        from datetime import timedelta
+        return production_date + timedelta(days=1 if shelf_life_value > 0 else 0)
+    if shelf_life_unit == "months":
+        from datetime import timedelta
+        return production_date + timedelta(days=30 * shelf_life_value)
+    from datetime import timedelta
+    return production_date + timedelta(days=shelf_life_value)
+
+
+def _label_profile_queryset():
+    return LabelProfile.objects.select_related("site").order_by("category", "name")
+
+
+def _label_session_queryset():
+    return LabelPrintJob.objects.select_related("site", "profile", "lot").order_by("-created_at")
+
+
 def _apply_schedule_fields(row: HaccpSchedule, data: dict):
     row.title = data.get("title", row.title)
     if "area" in data:
@@ -563,3 +590,157 @@ class HaccpLifecycleEventListView(APIView):
                 }
             )
         return Response({"results": rows}, status=status.HTTP_200_OK)
+
+
+class HaccpLabelProfileListCreateView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        site = _resolve_site(request.query_params.get("site"))
+        if not site:
+            return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_access(request, site)
+        if auth_error:
+            return auth_error
+        qs = _label_profile_queryset().filter(site=site)
+        return Response({"results": [serialize_label_profile(row) for row in qs]}, status=status.HTTP_200_OK)
+
+    @transaction.atomic
+    def post(self, request):
+        serializer = HaccpLabelProfileWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        site = _resolve_site(data["site"])
+        if not site:
+            return Response({"detail": "Unknown site."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_access(request, site, write=True)
+        if auth_error:
+            return auth_error
+        profile = LabelProfile.objects.create(
+            site=site,
+            name=data["name"].strip(),
+            category=(data.get("category") or "").strip(),
+            template_type=data.get("template_type"),
+            shelf_life_value=data.get("shelf_life_value", 1),
+            shelf_life_unit=data.get("shelf_life_unit", "days"),
+            packaging=(data.get("packaging") or "").strip(),
+            storage_instructions=(data.get("storage_hint") or "").strip(),
+            allergen_text=(data.get("allergens_text") or "").strip(),
+            is_active=data.get("is_active", True),
+        )
+        log_audit_event(
+            action="HACCP_LABEL_PROFILE_CREATED",
+            request=request,
+            site=site,
+            object_type="LabelProfile",
+            object_id=str(profile.id),
+            payload={"name": profile.name, "category": profile.category, "template_type": profile.template_type},
+        )
+        return Response(serialize_label_profile(profile), status=status.HTTP_201_CREATED)
+
+
+class HaccpLabelProfileDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    @transaction.atomic
+    def patch(self, request, profile_id):
+        profile = _label_profile_queryset().filter(id=profile_id).first()
+        if not profile:
+            return Response({"detail": "Label profile not found."}, status=status.HTTP_404_NOT_FOUND)
+        auth_error = _ensure_access(request, profile.site, write=True)
+        if auth_error:
+            return auth_error
+        serializer = HaccpLabelProfilePatchSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        for field, source in [("name", "name"), ("category", "category"), ("template_type", "template_type"), ("shelf_life_value", "shelf_life_value"), ("shelf_life_unit", "shelf_life_unit"), ("packaging", "packaging"), ("is_active", "is_active")]:
+            if source in data:
+                value = data[source]
+                if isinstance(value, str):
+                    value = value.strip()
+                setattr(profile, field, value)
+        if "storage_hint" in data:
+            profile.storage_instructions = (data.get("storage_hint") or "").strip()
+        if "allergens_text" in data:
+            profile.allergen_text = (data.get("allergens_text") or "").strip()
+        profile.save()
+        log_audit_event(
+            action="HACCP_LABEL_PROFILE_UPDATED",
+            request=request,
+            site=profile.site,
+            object_type="LabelProfile",
+            object_id=str(profile.id),
+            payload={"name": profile.name, "category": profile.category, "template_type": profile.template_type, "is_active": profile.is_active},
+        )
+        return Response(serialize_label_profile(profile), status=status.HTTP_200_OK)
+
+
+class HaccpLabelSessionListCreateView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        site = _resolve_site(request.query_params.get("site"))
+        if not site:
+            return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_access(request, site)
+        if auth_error:
+            return auth_error
+        qs = _label_session_queryset().filter(site=site)
+        return Response({"results": [serialize_label_session(row) for row in qs]}, status=status.HTTP_200_OK)
+
+    @transaction.atomic
+    def post(self, request):
+        serializer = HaccpLabelSessionWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        site = _resolve_site(data["site"])
+        if not site:
+            return Response({"detail": "Unknown site."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_access(request, site, write=True)
+        if auth_error:
+            return auth_error
+        profile = LabelProfile.objects.filter(id=data["profile_id"], site=site).first()
+        if not profile:
+            return Response({"detail": "Unknown profile for site."}, status=status.HTTP_400_BAD_REQUEST)
+        lot = None
+        source_lot_code = (data.get("source_lot_code") or "").strip()
+        if source_lot_code:
+            lot = Lot.objects.filter(site=site, internal_lot_code=source_lot_code).first()
+        production_date = timezone.localdate()
+        dlc_date = _compute_label_dlc_date(
+            production_date=production_date,
+            shelf_life_value=profile.shelf_life_value,
+            shelf_life_unit=profile.shelf_life_unit,
+        )
+        payload = {
+            "profile_name": profile.name,
+            "template_type": profile.template_type,
+            "planned_schedule_id": str(data.get("planned_schedule_id")) if data.get("planned_schedule_id") else None,
+            "source_lot_code": source_lot_code,
+            "session_status": data.get("status", "planned"),
+            "production_date": production_date.isoformat(),
+            "dlc_date": dlc_date.isoformat(),
+            "packaging": profile.packaging,
+            "storage_instructions": profile.storage_instructions,
+            "allergen_text": profile.allergen_text,
+        }
+        job = LabelPrintJob.objects.create(
+            site=site,
+            profile=profile,
+            lot=lot,
+            lot_internal_code=lot.internal_lot_code if lot else source_lot_code,
+            production_date=production_date,
+            dlc_date=dlc_date,
+            copies=data.get("quantity", 1),
+            payload=payload,
+            created_by=request.user if getattr(request, "user", None) and request.user.is_authenticated else None,
+        )
+        log_audit_event(
+            action="HACCP_LABEL_SESSION_CREATED",
+            request=request,
+            site=site,
+            object_type="LabelPrintJob",
+            object_id=str(job.id),
+            payload={"profile_id": str(profile.id), "quantity": job.copies, "status": payload["session_status"]},
+        )
+        return Response(serialize_label_session(job), status=status.HTTP_201_CREATED)

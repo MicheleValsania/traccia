@@ -80,6 +80,7 @@ from .services import (
     log_audit_event,
     lots_to_csv,
     lots_to_pdf,
+    normalize_temperature_unit,
     temperatures_register_to_csv,
     next_internal_code,
     parse_date_or_none,
@@ -786,7 +787,7 @@ class TemperatureConfirmView(APIView):
             device_label=device_label,
             reference_temperature_celsius=reference_temp,
             temperature_celsius=confirmed_temp,
-            unit="C",
+            unit=normalize_temperature_unit("C"),
             observed_at=data.get("observed_at") or timezone.now(),
             source=data.get("source", "OCR_PHOTO_CONFIRMED"),
             ocr_provider=str(data.get("ocr_provider", "") or ""),
@@ -936,6 +937,7 @@ class LabelProfileListCreateView(APIView):
         profile = LabelProfile.objects.create(
             site=site,
             name=data["name"].strip(),
+            category=data.get("category", "").strip(),
             template_type=data.get("template_type"),
             shelf_life_value=data.get("shelf_life_value", 1),
             shelf_life_unit=data.get("shelf_life_unit", "days"),
@@ -952,7 +954,7 @@ class LabelProfileListCreateView(APIView):
             site=site,
             object_type="LabelProfile",
             object_id=str(profile.id),
-            payload={"name": profile.name, "template_type": profile.template_type},
+            payload={"name": profile.name, "category": profile.category, "template_type": profile.template_type},
         )
         return Response(LabelProfileSerializer(profile).data, status=status.HTTP_201_CREATED)
 
@@ -972,6 +974,7 @@ class LabelProfileDetailView(APIView):
         data = payload.validated_data
         for field in [
             "name",
+            "category",
             "template_type",
             "shelf_life_value",
             "shelf_life_unit",
@@ -994,7 +997,7 @@ class LabelProfileDetailView(APIView):
             site=profile.site,
             object_type="LabelProfile",
             object_id=str(profile.id),
-            payload={"name": profile.name, "template_type": profile.template_type, "is_active": profile.is_active},
+            payload={"name": profile.name, "category": profile.category, "template_type": profile.template_type, "is_active": profile.is_active},
         )
         return Response(LabelProfileSerializer(profile).data, status=status.HTTP_200_OK)
 

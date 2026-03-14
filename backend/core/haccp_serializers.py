@@ -6,6 +6,10 @@ from .models import (
     HaccpSchedule,
     HaccpScheduleStatus,
     HaccpTaskType,
+    LabelPrintJob,
+    LabelProfile,
+    LabelShelfLifeUnit,
+    LabelTemplateType,
     OcrValidationStatus,
     Site,
     TemperatureDeviceType,
@@ -101,6 +105,40 @@ class HaccpOcrValidationSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=OcrValidationStatus.choices, required=False, default=OcrValidationStatus.VALIDATED)
 
 
+class HaccpLabelProfileWriteSerializer(serializers.Serializer):
+    site = serializers.UUIDField()
+    name = serializers.CharField(max_length=120)
+    category = serializers.CharField(max_length=120, required=False, allow_blank=True, default="")
+    template_type = serializers.ChoiceField(choices=LabelTemplateType.choices, required=False, default=LabelTemplateType.PREPARATION)
+    shelf_life_value = serializers.IntegerField(required=False, min_value=1, default=1)
+    shelf_life_unit = serializers.ChoiceField(choices=LabelShelfLifeUnit.choices, required=False, default=LabelShelfLifeUnit.DAYS)
+    packaging = serializers.CharField(required=False, allow_blank=True, default="")
+    storage_hint = serializers.CharField(required=False, allow_blank=True, default="")
+    allergens_text = serializers.CharField(required=False, allow_blank=True, default="")
+    is_active = serializers.BooleanField(required=False, default=True)
+
+
+class HaccpLabelProfilePatchSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=120, required=False)
+    category = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    template_type = serializers.ChoiceField(choices=LabelTemplateType.choices, required=False)
+    shelf_life_value = serializers.IntegerField(required=False, min_value=1)
+    shelf_life_unit = serializers.ChoiceField(choices=LabelShelfLifeUnit.choices, required=False)
+    packaging = serializers.CharField(required=False, allow_blank=True)
+    storage_hint = serializers.CharField(required=False, allow_blank=True)
+    allergens_text = serializers.CharField(required=False, allow_blank=True)
+    is_active = serializers.BooleanField(required=False)
+
+
+class HaccpLabelSessionWriteSerializer(serializers.Serializer):
+    site = serializers.UUIDField()
+    profile_id = serializers.UUIDField()
+    planned_schedule_id = serializers.UUIDField(required=False, allow_null=True)
+    source_lot_code = serializers.CharField(required=False, allow_blank=True, default="", max_length=128)
+    quantity = serializers.IntegerField(min_value=1, max_value=200)
+    status = serializers.ChoiceField(choices=("planned", "done", "cancelled"), required=False, default="planned")
+
+
 def serialize_site(site: Site) -> dict:
     return {
         "id": str(site.id),
@@ -164,4 +202,43 @@ def serialize_schedule(row: HaccpSchedule) -> dict:
         "recurrence_rule": row.recurrence_rule or {},
         "status": row.status,
         "metadata": row.metadata or {},
+    }
+
+
+def serialize_label_profile(profile: LabelProfile) -> dict:
+    return {
+        "id": str(profile.id),
+        "site": str(profile.site.external_id or profile.site_id),
+        "site_code": profile.site.code,
+        "name": profile.name,
+        "category": profile.category or "",
+        "template_type": profile.template_type,
+        "shelf_life_value": profile.shelf_life_value,
+        "shelf_life_unit": profile.shelf_life_unit,
+        "packaging": profile.packaging or "",
+        "storage_hint": profile.storage_instructions or "",
+        "allergens_text": profile.allergen_text or "",
+        "is_active": profile.is_active,
+        "created_at": profile.created_at.isoformat(),
+        "updated_at": profile.updated_at.isoformat(),
+    }
+
+
+def serialize_label_session(job: LabelPrintJob) -> dict:
+    payload = job.payload if isinstance(job.payload, dict) else {}
+    planned_schedule_id = payload.get("planned_schedule_id")
+    session_status = payload.get("session_status") or "done"
+    return {
+        "id": str(job.id),
+        "site": str(job.site.external_id or job.site_id),
+        "site_code": job.site.code,
+        "profile_id": str(job.profile_id),
+        "profile_name": job.profile.name,
+        "planned_schedule_id": str(planned_schedule_id) if planned_schedule_id else None,
+        "source_lot_code": job.lot_internal_code or payload.get("source_lot_code") or "",
+        "quantity": job.copies,
+        "status": session_status,
+        "created_at": job.created_at.isoformat(),
+        "production_date": job.production_date.isoformat(),
+        "dlc_date": job.dlc_date.isoformat(),
     }

@@ -380,6 +380,7 @@ class LabelProfile(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="label_profiles")
     name = models.CharField(max_length=120)
+    category = models.CharField(max_length=120, blank=True, default="")
     template_type = models.CharField(max_length=24, choices=LabelTemplateType.choices, default=LabelTemplateType.PREPARATION)
     shelf_life_value = models.PositiveIntegerField(default=1)
     shelf_life_unit = models.CharField(max_length=12, choices=LabelShelfLifeUnit.choices, default=LabelShelfLifeUnit.DAYS)
