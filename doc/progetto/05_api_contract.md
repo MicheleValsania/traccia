@@ -1,152 +1,125 @@
-API Contract (Current)
+# API Contract
 
-Auth
+## Purpose
 
+This document describes the Traccia API surface that remains relevant in the new operating model where:
+- `CookOps` is the central governance and validation platform
+- `Traccia` is the local operational execution platform
+
+It is not a full endpoint dump.
+It is the contract guide for the API areas that still matter after centralization.
+
+## 1. Authentication and site context
+
+### Auth
 - `POST /api/auth/token`
 - `GET /api/auth/me`
 
-Knowledge import
+These endpoints remain the basis for local mobile authentication and site membership resolution.
 
-- `POST /api/import/fiches`
-  - imports export v1.1 from Fiches
-  - must enforce strict envelope validation on arrays/primitive types
-  - should reject malformed IDs and unparseable dates
-  - should persist import warnings for operational review
+## 2. Local operational APIs kept in Traccia
 
-Sites
-
-- `POST /api/sites`
-- `GET /api/sites`
-
-Capture flow
-
-- `POST /api/capture/label-photo`
-
-Request body:
-
-```json
-{
-  "site_code": "TOURNELS01",
-  "supplier_name": "optional",
-  "file_name": "capture.jpg",
-  "file_mime_type": "image/jpeg",
-  "file_b64": "<base64>"
-}
-```
-
-Response body:
-
-```json
-{
-  "lot_id": "uuid",
-  "internal_lot_code": "TOURNELS01-20260224-0001",
-  "draft_status": "DRAFT",
-  "ocr_result": {
-    "supplier_lot_code": "",
-    "dlc_date": "",
-    "weight": "",
-    "product_guess": "",
-    "confidence": 0.8,
-    "ai_suggested": true,
-    "provider": "claude",
-    "fallback_reason": ""
-  },
-  "ocr_provider": "claude",
-  "ocr_warnings": [],
-  "product_suggestions": [],
-  "asset": {
-    "drive_file_id": "string",
-    "drive_link": "https://..."
-  }
-}
-```
-
-Drafts and validation
-
-- `GET /api/lots/drafts?site_code=TOURNELS01`
-- `POST /api/lots/{lot_id}/validate`
-- `POST /api/lots/reconcile-identical`
-  - merge ammesso solo per lotti con parametri critici identici
-  - mantiene relazione N:1 tra righe documento e lotto (`LotDocumentMatch`)
-
-Request body (`/api/lots/reconcile-identical`):
-
-```json
-{
-  "site_code": "TOURNELS01",
-  "fiche_product_id": "optional-uuid",
-  "supplier_name": "Miko",
-  "supplier_lot_code": "LOT-ABC-123",
-  "dlc_date": "2026-03-15",
-  "quantity_value": "4.000",
-  "quantity_unit": "kg",
-  "package_count": 20,
-  "critical_attributes": {
-    "supplier_product_id": "561fa673-9b83-4c95-a3ea-fbd55370f8f0",
-    "allergen_signature": "fish"
-  },
-  "document_lines": [
-    {
-      "document_type": "DELIVERY_NOTE",
-      "document_number": "BL-2026-00077",
-      "line_ref": "10",
-      "supplier_product_id": "561fa673-9b83-4c95-a3ea-fbd55370f8f0",
-      "qty_value": "4.000",
-      "qty_unit": "kg"
-    }
-  ]
-}
-```
-
-Lifecycle
-
-- `POST /api/lots/{lot_id}/transform`
-
-Alerts
-
-- `GET /api/alerts?site_code=TOURNELS01`
-
-Reports
-
-- `GET /api/reports/lots.csv?site_code=TOURNELS01&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD`
-- `GET /api/reports/lots.pdf?site_code=TOURNELS01&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD`
-- `GET /api/reports/temperatures.csv?site_code=TOURNELS01[&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD][&sector_id=<uuid>]`
-  - include anche:
-    - `source`
-    - `manual_deviation_reason`
-    - `corrective_action`
-
-Temperature
-
+### Temperature execution
 - `POST /api/temperatures/capture-preview`
 - `POST /api/temperatures/confirm`
-- `GET /api/temperatures?site_code=TOURNELS01&limit=20`
+- `GET /api/temperatures?site_code=<SITE>&limit=<N>`
+- `GET /api/reports/temperatures.csv?site_code=<SITE>[&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD][&sector_id=<uuid>]`
 
-Request body (`/api/temperatures/confirm`) - supporta OCR e manuale:
+These endpoints remain relevant because temperature execution stays local to each point of sale.
 
-```json
-{
-  "site_code": "TOURNELS01",
-  "cold_point_id": "optional-uuid",
-  "device_label": "Frigo 1",
-  "device_type": "FRIDGE",
-  "confirmed_temperature_celsius": "4.00",
-  "source": "OCR_PHOTO_CONFIRMED|MANUAL_PRESET|MANUAL_OUT_OF_RANGE",
-  "manual_deviation_reason": "optional",
-  "corrective_action": "optional"
-}
-```
+### Label execution
+- `GET /api/labels/profiles`
+- `PATCH /api/labels/profiles/{profile_id}`
+- `POST /api/labels/print`
 
-Operational rule
+Local label execution remains active in Traccia, but profiles are increasingly governed centrally from CookOps.
 
-- All capture modes must keep this invariant:
-  - photo upload to Google Drive is automatic and mandatory before analysis output is finalized.
+### Site-local structure
+- `GET /api/cold-sectors`
+- `POST /api/cold-sectors`
+- `PATCH /api/cold-sectors/{sector_id}`
+- `GET /api/cold-points`
+- `POST /api/cold-points`
+- `PATCH /api/cold-points/{point_id}`
 
-Ingest quality policy (from upstream handoff)
+These endpoints still exist locally, but the target governance path is increasingly driven from CookOps through HACCP sync APIs.
 
-- Product resolution:
-  - primary: `supplier_product_id`
-  - fallback: `supplier_id + normalized product name` with review queue
-- Price policy:
-  - use exported `unit_price_value` when present
-  - fallback to product master lookup when `supplier_product_id` exists
+## 3. HACCP adapter APIs used by CookOps
+
+### Registries and planning
+- `GET /api/v1/haccp/sites/`
+- `POST /api/v1/haccp/sites/sync/`
+- `GET /api/v1/haccp/sectors/`
+- `POST /api/v1/haccp/sectors/sync/`
+- `PATCH /api/v1/haccp/sectors/{sector_id}/`
+- `DELETE /api/v1/haccp/sectors/{sector_id}/`
+- `GET /api/v1/haccp/cold-points/`
+- `POST /api/v1/haccp/cold-points/sync/`
+- `PATCH /api/v1/haccp/cold-points/{point_id}/`
+- `DELETE /api/v1/haccp/cold-points/{point_id}/`
+- `GET /api/v1/haccp/schedules/`
+- `POST /api/v1/haccp/schedules/`
+- `PATCH /api/v1/haccp/schedules/{schedule_id}/`
+- `DELETE /api/v1/haccp/schedules/{schedule_id}/`
+
+### Labels
+- `GET /api/v1/haccp/label-profiles/`
+- `POST /api/v1/haccp/label-profiles/`
+- `PATCH /api/v1/haccp/label-profiles/{profile_id}/`
+- `DELETE /api/v1/haccp/label-profiles/{profile_id}/`
+- `GET /api/v1/haccp/label-sessions/`
+- `POST /api/v1/haccp/label-sessions/`
+
+### OCR and validation
+- `GET /api/v1/haccp/ocr-results/`
+- `POST /api/v1/haccp/ocr-results/{document_id}/validate/`
+
+### Lifecycle and reporting
+- `GET /api/v1/haccp/lifecycle-events/`
+- `GET /api/v1/haccp/temperature-readings/`
+
+These endpoints form the main Traccia-to-CookOps operational bridge.
+
+## 4. Deprecated target flows
+
+The following APIs may still exist during transition, but they are no longer the target product contract for central traceability ingestion:
+
+### Immediate capture and draft-first flow
+- `POST /api/capture/label-photo`
+- `GET /api/lots/drafts`
+- `POST /api/lots/{lot_id}/validate`
+- `POST /api/lots/reconcile-identical`
+
+Reason:
+- incoming capture is moving to `continuous camera -> Drive -> CookOps import -> central validation`
+- central lot creation should happen in CookOps, not from local phone-first validation
+
+## 5. Lifecycle note
+
+`Lifecycle` is no longer considered a standalone long-term mobile module.
+
+The remaining local operational need is:
+- using a centrally governed label profile
+- selecting or confirming a source lot
+- executing the label and local operational event
+
+This behavior is expected to move inside the label workflow rather than remain as an autonomous lifecycle area.
+
+## 6. Contract guidance
+
+### Stable direction
+- keep local operational APIs in Traccia
+- keep HACCP adapter APIs for CookOps
+- centralize validation and governance in CookOps
+
+### Avoid for new development
+- building new product logic on immediate local OCR validation
+- extending standalone lifecycle UI contracts
+- treating Traccia as the central document validation backend
+
+## 7. Related documents
+
+- `doc/progetto/17_target_operating_model.md`
+- `doc/progetto/18_documentation_inventory.md`
+- `doc/progetto/03_architecture.md`
+- `doc/progetto/15_capture_worker_backup_workflow.md`
