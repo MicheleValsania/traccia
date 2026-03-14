@@ -1,145 +1,143 @@
-# 15 - Capture, Worker OCR, Registri e Backup Drive
+# 15 - Continuous Capture, Central Ingestion and Drive Backup
 
-Date: 2026-03-07
+Date: 2026-03-14
 Owner: traccia team
 
-## 1) Obiettivo
+## 1. Objective
 
-Definire in modo operativo e verificabile:
-- percorso dati dalla foto al lotto convalidato,
-- modalita di accesso del worker OCR alle foto su Drive,
-- registri gia presenti dove scrivere i dati estratti,
-- strategia backup su Drive (lotti + temperature).
+This document defines the target operational flow for image capture and archival after the move to central traceability governance in CookOps.
 
-## 2) Percorso dati (stato attuale)
+It covers:
+- continuous capture on site from Traccia
+- Drive as image inbox or storage handoff
+- central ingestion and OCR validation in CookOps
+- role of existing Traccia registries during transition
+- Drive backup strategy for operational evidence
 
-Flusso `Camera -> Backend`:
-1. Mobile invia foto a `POST /api/capture/label-photo` con base64.
-2. Backend esegue upload Drive (`upload_to_drive`).
-3. Backend esegue OCR etichetta (`run_label_ocr`).
-4. Backend crea:
-   - `Lot` in stato `DRAFT`,
-   - `Asset` collegato al lotto (con `drive_file_id`, `drive_link`, `sha256`),
-   - `OcrJob` con risultato OCR.
-5. Operatore convalida draft -> `Lot` passa a `ACTIVE`.
+## 2. Target flow
 
-Formato date:
-- Interno (DB/API): `YYYY-MM-DD`
-- UI/Export Francia: visualizzazione `DD-MM-YYYY` (layer presentazione).
+### 2.1 Continuous capture flow
 
-## 3) Worker OCR (target consigliato)
+Target flow:
+1. Traccia continuous camera captures images on site.
+2. Images are sent to Drive.
+3. CookOps imports new files from Drive.
+4. CookOps runs OCR extraction centrally.
+5. A central operator validates and corrects extracted data.
+6. CookOps creates or consolidates the central lot.
+7. Traccia later uses centrally governed label profiles and source-lot suggestions for local execution.
 
-## 3.1 Principio
+This replaces the previous target flow where mobile capture immediately created local draft lots.
 
-Separare upload e OCR in due fasi:
-- fase A sincrona: acquisizione + upload Drive + creazione record,
-- fase B asincrona: worker OCR su coda (`OcrJob`).
+## 3. What is no longer the target flow
 
-Beneficio:
-- app camera resta veloce in cucina,
-- retry OCR indipendente,
-- migliore osservabilita errori.
+The following flow is being deprecated:
+- single-photo capture
+- immediate OCR on the Traccia backend
+- immediate local validation on the phone
+- direct mobile-driven creation of central traceability records
 
-## 3.2 Accesso worker alle foto
+The continuous camera remains valid.
+The immediate OCR flow does not remain a product target.
 
-Il worker deve leggere i record `Asset` e usare:
-- `Asset.drive_file_id` come riferimento principale,
-- `Asset.mime_type` e `Asset.file_name` per contesto.
+## 4. Role of Drive
 
-Pattern consigliato:
-1. Worker prende `OcrJob(status=PENDING)` con lock.
-2. Recupera `Asset` associato.
-3. Scarica binario da Drive via API `files.get_media(fileId=drive_file_id)`.
-4. Esegue OCR.
-5. Salva risultato in `OcrJob.result`, aggiorna `Lot.ai_payload`.
-6. Imposta `OcrJob.status` in `DONE` o `FAILED`.
+Drive is used as the shared image inbox between local capture and central governance.
 
-Implementazione disponibile:
-- `python manage.py process_ocr_jobs --limit 50`
-- opzionale retry falliti: `--retry-failed`
-- modalita async capture attivabile con `OCR_LABEL_ASYNC_ENABLED=1`.
+### 4.1 Current role
+- receives images from site capture
+- stores original visual evidence
+- acts as a retrieval point for central ingestion if needed
 
-Nota:
-- Se Drive e indisponibile, il worker marca `FAILED` con errore esplicito.
-- Retry governato da policy (es. max 3 tentativi, backoff esponenziale).
+### 4.2 Target operational rule
+- Drive is not the final business state layer
+- CookOps must import the file and create a managed central document record
+- deduplication should rely on `drive_file_id` or an equivalent stable file identifier
 
-## 4) Registri esistenti (gia disponibili)
+## 5. Role of Traccia backend in this flow
 
-Per tracciabilita lotti:
-- `Lot`: stato operativo (`DRAFT`, `ACTIVE`, `TRANSFORMED`, ...)
-- `Asset`: metadati file e riferimento Drive
-- `OcrJob`: esito OCR e diagnostica
-- `AuditLog`: eventi immutabili (hash chain)
+In the target model, Traccia is no longer the primary OCR validation backend for incoming central traceability images.
 
-Per temperature:
-- `TemperatureReading`: registro principale (manuale + OCR confermato)
-- `TemperatureRegister`: registro per settore
-- `ColdSector`, `ColdPoint`, `TemperatureRoute`, `TemperatureRouteStep`
+Traccia still remains relevant for:
+- local execution data
+- local temperature records
+- local label execution
+- local cleaning records
+- integration APIs consumed by CookOps
 
-Conclusione:
-- i registri per scrivere dati estratti esistono gia.
-- da completare solo pipeline worker asincrona e monitoraggio stato.
+Existing OCR-related backend capabilities should be treated as transitional until cleanup is complete.
 
-## 5) Campi OCR estesi (carni/pesce)
+## 6. Existing registries and their relevance
 
-Oltre ai campi base (`supplier_lot_code`, `dlc_date`, `weight`, `product_guess`):
-- carni:
-  - `cee_stamp`
-  - `meat_origin_country`
-- pesce:
-  - `fao_zone`
-  - `catch_method` (opzionale)
+### 6.1 Registries still useful during transition
 
-Regola:
-- salvataggio in `Lot.ai_payload` + warning di revisione se mancanti.
+- `Asset`: still useful as file metadata structure and evidence reference
+- `OcrJob`: transitional, useful only if legacy OCR paths remain temporarily enabled
+- `AuditLog`: still important for traceability and immutable event history
+- `TemperatureReading`: remains the operational temperature register
+- `TemperatureRegister`: remains the structure for temperature execution by sector
+- `ColdSector`, `ColdPoint`, `TemperatureRoute`, `TemperatureRouteStep`: still valid for temperature execution structure
 
-## 6) Backup Drive (lotti + temperature)
+### 6.2 Registries no longer considered central truth for incoming capture
 
-## 6.1 Cosa salvare
+- `Lot` creation directly from mobile capture is no longer the target central governance path
+- OCR result validation in Traccia is no longer the primary validation workflow for incoming Drive photos
 
-Backup periodico (giornaliero consigliato):
-1. `lots.csv` (filtro giorno corrente)
-2. `temperatures.csv` (filtro giorno corrente)
-3. opzionale `lots.pdf` per archivio leggibile
+## 7. Central ingestion model
 
-## 6.2 Dove salvare
+The target central model is:
+- Traccia captures
+- Drive stores
+- CookOps imports
+- CookOps validates
+- CookOps creates the central lot
 
-Cartella Drive dedicata (esempio):
-- `traccia_backup/YYYY/MM/DD/`
-  - `lots_YYYY-MM-DD.csv`
-  - `temperatures_YYYY-MM-DD.csv`
-  - `lots_YYYY-MM-DD.pdf` (opzionale)
+This means the business checkpoint moves from local draft validation to central dossier validation.
 
-## 6.3 Come generarlo
+## 8. Backup strategy on Drive
 
-Usare endpoint gia presenti:
-- `GET /api/reports/lots.csv`
-- `GET /api/reports/temperatures.csv`
-- `GET /api/reports/lots.pdf` (opzionale)
+### 8.1 What still makes sense to back up
 
-Poi upload su Drive via stesso provider credenziali.
+Drive should keep:
+- original captured images
+- optional exported operational evidence when needed for audit
 
-## 6.4 Frequenza e retention
+### 8.2 What should not be confused with backup
 
-- Frequenza minima: 1 backup/notte (es. 02:00 Europe/Paris).
-- Consigliato: backup incrementale giornaliero + retention 12 mesi.
-- Naming deterministico per facile recupero auditor.
+Drive is not the same thing as:
+- central traceability state
+- validated lot state
+- document reconciliation state
 
-## 7) Controlli operativi minimi
+Those belong in CookOps.
 
-Ogni giorno verificare:
-1. ultimo upload foto su Drive riuscito,
-2. coda OCR senza arretrati critici,
-3. backup giornaliero presente in cartella Drive backup,
-4. report temperature esportabile senza errori.
+### 8.3 Operational exports still relevant
 
-## 8) Decisioni operative consigliate
+The following exports remain useful as audit support:
+- temperature register CSV
+- optional lot or operational summaries if still needed during transition
 
-1. Tenere `GOOGLE_DRIVE_STRICT=1` in produzione.
-2. Tenere OCR non bloccante ma con warning strutturati.
-3. Separare chiaramente:
-- storage foto (`Asset`/Drive),
-- estrazione (`OcrJob`),
-- validazione umana (`Lot` DRAFT->ACTIVE),
-- audit (`AuditLog`),
-- backup report (cartella Drive backup).
+## 9. Operational checks
+
+Daily checks should become:
+1. continuous capture is still uploading images successfully
+2. Drive inbox is receiving files
+3. CookOps central import is not accumulating unprocessed files
+4. central validation queue is operational
+5. local temperature execution remains exportable and visible
+
+## 10. Cleanup implications
+
+This document assumes the following cleanup direction in Traccia main:
+- keep continuous camera
+- remove immediate OCR as target flow
+- remove standalone lifecycle UI
+- keep local execution modules
+- keep integration APIs required by CookOps
+
+## 11. Related documents
+
+- `doc/progetto/17_target_operating_model.md`
+- `doc/progetto/18_documentation_inventory.md`
+- `doc/progetto/03_architecture.md`
+- `doc/progetto/16_label_printer_implementation.md`
