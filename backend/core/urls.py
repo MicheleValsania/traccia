@@ -1,6 +1,8 @@
 from django.urls import path
 
 from .haccp_views import (
+    HaccpAssetDownloadView,
+    HaccpAssetListView,
     HaccpColdPointDetailView,
     HaccpColdPointListView,
     HaccpColdPointSyncView,
@@ -51,6 +53,8 @@ from .views import (
 urlpatterns = [
     path("v1/haccp/sites/", HaccpSiteListView.as_view(), name="haccp-site-list"),
     path("v1/haccp/sites/sync/", HaccpSiteSyncView.as_view(), name="haccp-site-sync"),
+    path("v1/haccp/assets/", HaccpAssetListView.as_view(), name="haccp-asset-list"),
+    path("v1/haccp/assets/<uuid:asset_id>/download/", HaccpAssetDownloadView.as_view(), name="haccp-asset-download"),
     path("v1/haccp/sectors/", HaccpSectorListView.as_view(), name="haccp-sector-list"),
     path("v1/haccp/sectors/<uuid:sector_id>/", HaccpSectorDetailView.as_view(), name="haccp-sector-detail"),
     path("v1/haccp/sectors/sync/", HaccpSectorSyncView.as_view(), name="haccp-sector-sync"),

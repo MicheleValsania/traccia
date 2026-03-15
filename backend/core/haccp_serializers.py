@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from .models import (
+    Asset,
     ColdPoint,
     ColdSector,
     HaccpSchedule,
@@ -146,6 +147,23 @@ def serialize_site(site: Site) -> dict:
         "code": site.code,
         "name": site.name,
         "timezone": site.timezone,
+    }
+
+
+def serialize_asset(asset: Asset) -> dict:
+    return {
+        "id": str(asset.id),
+        "site": str(asset.site.external_id or asset.site_id),
+        "site_code": asset.site.code,
+        "asset_type": asset.asset_type,
+        "file_name": asset.file_name,
+        "drive_file_id": asset.drive_file_id,
+        "drive_link": asset.drive_link,
+        "mime_type": asset.mime_type,
+        "sha256": asset.sha256,
+        "captured_at": asset.captured_at.isoformat(),
+        "uploaded_at": asset.uploaded_at.isoformat(),
+        "metadata": asset.metadata or {},
     }
 
 

@@ -1,5 +1,6 @@
 from datetime import date
 import uuid
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -196,6 +197,33 @@ class HaccpApiTests(TestCase):
         resp = self.client.delete(f"/api/v1/haccp/sectors/{sector.id}/")
         self.assertEqual(resp.status_code, 204)
         self.assertFalse(ColdSector.objects.filter(id=sector.id).exists())
+
+    @patch("core.haccp_views.download_from_drive", return_value=(b"image-bytes", "image/jpeg"))
+    def test_haccp_asset_list_and_download(self, _download_mock):
+        asset = Asset.objects.create(
+            site=self.site,
+            asset_type=AssetType.PHOTO_LABEL,
+            file_name="capture-001.jpg",
+            drive_file_id="drive-file-001",
+            drive_link="https://drive.example/001",
+            mime_type="image/jpeg",
+            sha256="sha-001",
+            metadata={"capture_mode": "continuous_camera"},
+        )
+
+        resp = self.client.get(f"/api/v1/haccp/assets/?site={self.external_site_id}&asset_type=PHOTO_LABEL&limit=10")
+        self.assertEqual(resp.status_code, 200)
+        rows = resp.json()["results"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["id"], str(asset.id))
+        self.assertEqual(rows[0]["drive_file_id"], "drive-file-001")
+
+        resp = self.client.get(f"/api/v1/haccp/assets/{asset.id}/download/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content, b"image-bytes")
+        self.assertEqual(resp["Content-Type"], "image/jpeg")
+        self.assertEqual(resp["X-Drive-File-Id"], "drive-file-001")
+
 
     def test_ocr_queue_and_validate(self):
         lot = Lot.objects.create(

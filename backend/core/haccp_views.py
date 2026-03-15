@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.db import transaction
+from django.http import HttpResponse
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status
@@ -21,6 +22,7 @@ from .haccp_serializers import (
     HaccpSectorSyncItemSerializer,
     HaccpSectorSyncSerializer,
     HaccpSiteSyncSerializer,
+    serialize_asset,
     serialize_cold_point,
     serialize_label_profile,
     serialize_label_session,
@@ -29,6 +31,7 @@ from .haccp_serializers import (
     serialize_site,
 )
 from .models import (
+    Asset,
     ColdPoint,
     ColdSector,
     HaccpSchedule,
@@ -46,7 +49,7 @@ from .models import (
     TemperatureReading,
 )
 from .serializers import TemperatureReadingSerializer
-from .services import log_audit_event
+from .services import download_from_drive, log_audit_event
 
 SITE_READ_ROLES = {
     MembershipRole.ADMIN,
@@ -197,6 +200,50 @@ class HaccpSiteSyncView(APIView):
             _ensure_admin_memberships(site)
             rows.append(serialize_site(site))
         return Response({"created": created, "updated": updated, "results": rows}, status=status.HTTP_200_OK)
+
+
+class HaccpAssetListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        site = _resolve_site(request.query_params.get("site"))
+        if not site:
+            return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_error = _ensure_access(request, site)
+        if auth_error:
+            return auth_error
+        asset_type = str(request.query_params.get("asset_type") or "").strip()
+        try:
+            limit = int(request.query_params.get("limit", 80))
+        except ValueError:
+            limit = 80
+        limit = max(1, min(limit, 500))
+        qs = Asset.objects.select_related("site").filter(site=site).order_by("-uploaded_at", "-captured_at")
+        if asset_type:
+            qs = qs.filter(asset_type=asset_type)
+        return Response({"results": [serialize_asset(row) for row in qs[:limit]]}, status=status.HTTP_200_OK)
+
+
+class HaccpAssetDownloadView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, asset_id):
+        asset = Asset.objects.select_related("site").filter(id=asset_id).first()
+        if not asset:
+            return Response({"detail": "Asset not found."}, status=status.HTTP_404_NOT_FOUND)
+        auth_error = _ensure_access(request, asset.site)
+        if auth_error:
+            return auth_error
+        if not asset.drive_file_id:
+            return Response({"detail": "Asset has no drive_file_id."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            binary, mime_type = download_from_drive(asset.drive_file_id, file_name_hint=asset.file_name)
+        except RuntimeError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        response = HttpResponse(binary, content_type=mime_type or asset.mime_type or "application/octet-stream")
+        response["Content-Disposition"] = f'inline; filename="{asset.file_name}"'
+        response["X-Drive-File-Id"] = asset.drive_file_id
+        return response
 
 
 class HaccpSectorListView(APIView):
