@@ -241,19 +241,19 @@ def _build_drive_client(*, strict_mode: bool):
             token_uri=oauth_token_uri,
             client_id=oauth_client_id,
             client_secret=oauth_client_secret,
-            scopes=["https://www.googleapis.com/auth/drive.file"],
+            scopes=["https://www.googleapis.com/auth/drive"],
         )
         creds.refresh(GoogleAuthRequest())
         provider = "oauth_user"
     elif service_account_json:
         creds_info = json.loads(service_account_json)
         creds = service_account.Credentials.from_service_account_info(
-            creds_info, scopes=["https://www.googleapis.com/auth/drive.file"]
+            creds_info, scopes=["https://www.googleapis.com/auth/drive"]
         )
         provider = "service_account"
     else:
         creds = service_account.Credentials.from_service_account_file(
-            service_account_path, scopes=["https://www.googleapis.com/auth/drive.file"]
+            service_account_path, scopes=["https://www.googleapis.com/auth/drive"]
         )
         provider = "service_account"
 
