@@ -174,6 +174,7 @@ export type LabelProfile = {
   id: string;
   site_code: string;
   name: string;
+  category: string;
   template_type: LabelTemplateType;
   shelf_life_value: number;
   shelf_life_unit: LabelShelfLifeUnit;
@@ -201,4 +202,4 @@ export type LabelPrintJob = {
   created_at: string;
 };
 
-export type TabKey = "camera" | "dashboard" | "lifecycle" | "temperatures" | "labels" | "settings";
+export type TabKey = "camera" | "dashboard" | "temperatures" | "labels" | "settings";

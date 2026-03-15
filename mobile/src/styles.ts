@@ -1,4 +1,4 @@
-import { Platform, StyleSheet } from "react-native";
+import { Platform, StyleSheet, TextStyle } from "react-native";
 
 const COLORS = {
   // Light theme
@@ -87,7 +87,7 @@ const TYPOGRAPHY = {
     lineHeight: 12,
     letterSpacing: 0.8,
   },
-};
+} satisfies Record<string, TextStyle>;
 
 // Spacing system
 const SPACING = {

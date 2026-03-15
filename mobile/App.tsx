@@ -3,22 +3,19 @@ import React, { useEffect, useRef, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 import { SvgXml } from "react-native-svg";
 
-import { fetchDrafts, fetchMe, loginToken } from "./src/api";
+import { fetchMe, loginToken } from "./src/api";
 import { chefsideLogoXml } from "./src/assets/chefsideLogoXml";
 import { AuthCard } from "./src/components/AuthCard";
 import { CaptureScreen } from "./src/screens/CaptureScreen";
-import { DraftsScreen } from "./src/screens/DraftsScreen";
 import { LabelsScreen } from "./src/screens/LabelsScreen";
-import { LifecycleScreen } from "./src/screens/LifecycleScreen";
 import { ReportsScreen } from "./src/screens/ReportsScreen";
 import { TemperatureScreen } from "./src/screens/TemperatureScreen";
 import { appStyles } from "./src/styles";
-import { CaptureResponse, DraftLot, MeMembership, TabKey } from "./src/types";
+import { MeMembership, TabKey } from "./src/types";
 
 const TABS: Array<{ key: TabKey; icon: string; label: string }> = [
   { key: "camera", icon: "\u{1F4F7}", label: "Camera" },
   { key: "dashboard", icon: "\u{1F37D}\uFE0F", label: "Dashboard" },
-  { key: "lifecycle", icon: "\u{1F501}", label: "Lifecycle" },
   { key: "temperatures", icon: "\u{1F321}\uFE0F", label: "Temperature" },
   { key: "labels", icon: "\u{1F3F7}\uFE0F", label: "Etichette" },
   { key: "settings", icon: "\u2699\uFE0F", label: "Parametri" },
@@ -32,8 +29,6 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
   const [memberships, setMemberships] = useState<MeMembership[]>([]);
-  const [captureResult, setCaptureResult] = useState<CaptureResponse | null>(null);
-  const [drafts, setDrafts] = useState<DraftLot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,24 +68,9 @@ export default function App() {
     }
   }
 
-  async function refreshDrafts() {
-    if (!token) {
-      setError("Effettua login prima di caricare i draft.");
-      return;
-    }
-    try {
-      const next = await fetchDrafts(token, siteCode);
-      setDrafts(next);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Errore caricamento draft.");
-    }
-  }
-
   function logout() {
     setToken("");
     setError("");
-    setDrafts([]);
-    setCaptureResult(null);
     setMemberships([]);
     setActiveTab("camera");
   }
@@ -111,7 +91,7 @@ export default function App() {
               <SvgXml xml={chefsideLogoXml} width={220} height={66} />
             </View>
             <Text style={appStyles.authTitle}>Traccia HACCP</Text>
-            <Text style={appStyles.authSubtitle}>Controllo lotti, temperature, lifecycle e alert.</Text>
+            <Text style={appStyles.authSubtitle}>Camera continua, temperature, etichette operative e alert.</Text>
             <AuthCard
               username={username}
               setUsername={setUsername}
@@ -132,21 +112,14 @@ export default function App() {
             setSupplierName={() => {}}
             loading={loading}
             setLoading={setLoading}
-            captureResult={captureResult}
-            setCaptureResult={setCaptureResult}
             setError={setError}
-            refreshDrafts={refreshDrafts}
           />
         ) : null}
 
         {token && activeTab === "dashboard" ? (
-          <>
-            <ReportsScreen siteCode={siteCode} token={token} />
-            <DraftsScreen token={token} drafts={drafts} setError={setError} refreshDrafts={refreshDrafts} />
-          </>
+          <ReportsScreen siteCode={siteCode} token={token} />
         ) : null}
 
-        {token && activeTab === "lifecycle" ? <LifecycleScreen token={token} siteCode={siteCode} setError={setError} /> : null}
         {token && activeTab === "temperatures" ? (
           <TemperatureScreen token={token} siteCode={siteCode} setSiteCode={setSiteCode} setError={setError} />
         ) : null}
