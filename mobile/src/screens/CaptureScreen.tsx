@@ -8,9 +8,6 @@ import { appStyles } from "../styles";
 type Props = {
   token: string;
   siteCode: string;
-  setSiteCode: (value: string) => void;
-  supplierName: string;
-  setSupplierName: (value: string) => void;
   loading: boolean;
   setLoading: (value: boolean) => void;
   setError: (value: string) => void;
@@ -48,7 +45,6 @@ export function CaptureScreen(props: Props) {
     const body = await captureLabelPhoto({
       token: props.token,
       siteCode: props.siteCode,
-      supplierName: props.supplierName,
       fileName: asset.fileName || `capture_${Date.now()}.jpg`,
       fileMimeType: asset.mimeType || "image/jpeg",
       fileBase64,

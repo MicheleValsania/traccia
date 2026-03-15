@@ -1,10 +1,9 @@
 import {
   ActiveLotSearchItem,
   AlertItem,
-  CaptureResponse,
+  CaptureUploadResponse,
   ColdPoint,
   ColdSector,
-  DraftLot,
   LabelPrintJob,
   LabelProfile,
   MeResponse,
@@ -12,7 +11,6 @@ import {
   TemperaturePreviewResponse,
   TemperatureReading,
   TemperatureRoute,
-  TransformResponse,
 } from "./types";
 
 function buildApiBase(): string {
@@ -76,14 +74,12 @@ export async function fetchMe(token: string): Promise<MeResponse> {
 export async function captureLabelPhoto(params: {
   token: string;
   siteCode: string;
-  supplierName: string;
   fileName: string;
   fileMimeType: string;
   fileBase64: string;
-}): Promise<CaptureResponse> {
+}): Promise<CaptureUploadResponse> {
   const payload = {
     site_code: params.siteCode,
-    supplier_name: params.supplierName,
     file_name: params.fileName,
     file_mime_type: params.fileMimeType,
     file_b64: params.fileBase64,
@@ -96,62 +92,9 @@ export async function captureLabelPhoto(params: {
     const details = await response.text();
     throw new Error(details || "Errore in capture.");
   }
-  return (await response.json()) as CaptureResponse;
+  return (await response.json()) as CaptureUploadResponse;
 }
 
-export async function fetchDrafts(token: string, siteCode: string): Promise<DraftLot[]> {
-  const response = await fetch(`${API_BASE}/lots/drafts?site_code=${siteCode}`, withAuth(token, { method: "GET" }));
-  if (!response.ok) {
-    throw new Error("Caricamento draft fallito.");
-  }
-  return (await response.json()) as DraftLot[];
-}
-
-export async function validateDraftLot(token: string, lot: DraftLot): Promise<void> {
-  const suggestedProduct = lot.suggestions?.[0];
-  const payload = {
-    ...(suggestedProduct ? { fiche_product_id: suggestedProduct.id } : {}),
-    supplier_lot_code: lot.supplier_lot_code,
-    dlc_date: lot.dlc_date,
-    validated_by: "mobile_operator",
-    role: "OPERATOR",
-  };
-  const response = await fetch(
-    `${API_BASE}/lots/${lot.id}/validate`,
-    withAuth(token, { method: "POST", body: JSON.stringify(payload) }),
-  );
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(details || "Convalida fallita.");
-  }
-}
-
-export async function transformLot(params: {
-  token: string;
-  lotId: string;
-  action: string;
-  outputDlcDate?: string;
-  outputQuantityValue?: string;
-  outputQuantityUnit?: string;
-  note?: string;
-}): Promise<TransformResponse> {
-  const payload = {
-    action: params.action,
-    output_dlc_date: params.outputDlcDate || undefined,
-    output_quantity_value: params.outputQuantityValue || undefined,
-    output_quantity_unit: params.outputQuantityUnit || undefined,
-    note: params.note || "",
-  };
-  const response = await fetch(
-    `${API_BASE}/lots/${params.lotId}/transform`,
-    withAuth(params.token, { method: "POST", body: JSON.stringify(payload) }),
-  );
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(details || "Trasformazione fallita.");
-  }
-  return (await response.json()) as TransformResponse;
-}
 
 export async function fetchActiveLotsSearch(params: {
   token: string;
@@ -193,6 +136,7 @@ export async function createLabelProfile(params: {
   token: string;
   siteCode: string;
   name: string;
+  category?: string;
   templateType?: "RAW_MATERIAL" | "PREPARATION" | "TRANSFORMATION";
   shelfLifeValue?: number;
   shelfLifeUnit?: "hours" | "days" | "months";
@@ -208,6 +152,7 @@ export async function createLabelProfile(params: {
       body: JSON.stringify({
         site_code: params.siteCode,
         name: params.name,
+        category: params.category || "",
         template_type: params.templateType || "PREPARATION",
         shelf_life_value: params.shelfLifeValue ?? 1,
         shelf_life_unit: params.shelfLifeUnit || "days",
@@ -229,6 +174,7 @@ export async function updateLabelProfile(params: {
   token: string;
   profileId: string;
   name?: string;
+  category?: string;
   templateType?: "RAW_MATERIAL" | "PREPARATION" | "TRANSFORMATION";
   shelfLifeValue?: number;
   shelfLifeUnit?: "hours" | "days" | "months";
@@ -239,6 +185,7 @@ export async function updateLabelProfile(params: {
 }): Promise<LabelProfile> {
   const body: Record<string, unknown> = {};
   if (params.name !== undefined) body.name = params.name;
+  if (params.category !== undefined) body.category = params.category;
   if (params.templateType !== undefined) body.template_type = params.templateType;
   if (params.shelfLifeValue !== undefined) body.shelf_life_value = params.shelfLifeValue;
   if (params.shelfLifeUnit !== undefined) body.shelf_life_unit = params.shelfLifeUnit;

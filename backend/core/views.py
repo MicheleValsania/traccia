@@ -261,74 +261,35 @@ class CaptureLabelView(APIView):
                 {"detail": "Drive upload failed.", "error": str(exc)[:300]},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        async_ocr = os.getenv("OCR_LABEL_ASYNC_ENABLED", "0") == "1"
-        warnings = []
-        ai_payload = {"warnings": warnings}
-        ocr_validated = {
-            "supplier_lot_code": "",
-            "dlc_date": "",
-            "weight": "",
-            "product_guess": "",
-            "provider": "pending_worker",
-        }
-        if not async_ocr:
-            ocr_raw = run_label_ocr(file_name=data["file_name"], binary=binary, mime_type=mime_type)
-            ocr = OcrResultSerializer(data=ocr_raw)
-            ocr.is_valid(raise_exception=True)
-            ocr_validated = ocr.validated_data
-            warnings = build_ocr_warnings(ocr_validated)
-            ai_payload = {**ocr_validated, "warnings": warnings}
 
-        lot = Lot.objects.create(
-            site=site,
-            internal_lot_code=next_internal_code(site.code),
-            supplier_name=data.get("supplier_name", ""),
-            supplier_lot_code=ocr_validated.get("supplier_lot_code", ""),
-            dlc_date=parse_date_or_none(ocr_validated.get("dlc_date", "")),
-            status=LotStatus.DRAFT,
-            ai_suggested=True,
-            ai_payload=ai_payload,
-        )
-        lot.schedule_expiry_alerts()
         asset = Asset.objects.create(
             site=site,
-            lot=lot,
+            lot=None,
             asset_type=AssetType.PHOTO_LABEL,
             file_name=drive["file_name"],
             drive_file_id=drive["drive_file_id"],
             drive_link=drive["drive_link"],
             sha256=drive["sha256"],
             mime_type=mime_type,
-        )
-        OcrJob.objects.create(
-            site=site,
-            asset=asset,
-            lot=lot,
-            status=OcrJobStatus.PENDING if async_ocr else OcrJobStatus.DONE,
-            result=ocr_validated if not async_ocr else {},
-            error="",
+            metadata={
+                "capture_mode": "continuous_camera",
+                "supplier_name": data.get("supplier_name", ""),
+                "source_app": "traccia_mobile",
+            },
         )
         log_audit_event(
-            action="LOT_DRAFT_CREATED_FROM_CAPTURE",
+            action="CAPTURE_ASSET_UPLOADED",
             request=request,
             site=site,
-            object_type="Lot",
-            object_id=str(lot.id),
-            payload={"internal_lot_code": lot.internal_lot_code, "drive_file_id": asset.drive_file_id},
+            object_type="Asset",
+            object_id=str(asset.id),
+            payload={"drive_file_id": asset.drive_file_id, "file_name": asset.file_name},
         )
 
-        suggestions = suggest_products(site_id=str(site.id), product_guess=ocr_validated.get("product_guess", ""))
         return Response(
             {
-                "lot_id": str(lot.id),
-                "internal_lot_code": lot.internal_lot_code,
-                "draft_status": lot.status,
-                "ocr_pending": async_ocr,
-                "ocr_result": ocr_validated,
-                "ocr_provider": ocr_validated.get("provider", "unknown"),
-                "ocr_warnings": warnings,
-                "product_suggestions": suggestions,
                 "asset": {
+                    "id": str(asset.id),
                     "drive_file_id": asset.drive_file_id,
                     "drive_link": asset.drive_link,
                     "drive_provider": drive.get("provider", "unknown"),

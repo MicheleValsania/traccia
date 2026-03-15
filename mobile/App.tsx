@@ -107,9 +107,6 @@ export default function App() {
           <CaptureScreen
             token={token}
             siteCode={siteCode}
-            setSiteCode={setSiteCode}
-            supplierName=""
-            setSupplierName={() => {}}
             loading={loading}
             setLoading={setLoading}
             setError={setError}

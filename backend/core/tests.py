@@ -41,6 +41,31 @@ class HaccpApiTests(TestCase):
         self.external_site_id = uuid.uuid4()
         self.site = Site.objects.create(external_id=self.external_site_id, code="MAIN", name="Main Site")
 
+    def test_capture_label_upload_only_creates_asset(self):
+        user = User.objects.create_user(username="capture-op", password="test123")
+        Membership.objects.create(user=user, site=self.site, role=MembershipRole.OPERATOR)
+        self.client.force_authenticate(user=user)
+
+        payload = {
+            "site_code": self.site.code,
+            "file_name": "capture.jpg",
+            "file_mime_type": "image/jpeg",
+            "file_b64": "aGVsbG8=",
+        }
+        resp = self.client.post("/api/capture/label-photo", payload, format="json")
+
+        self.assertEqual(resp.status_code, 201)
+        body = resp.json()
+        self.assertIn("asset", body)
+        self.assertTrue(body["asset"]["drive_file_id"])
+        self.assertEqual(Asset.objects.count(), 1)
+        self.assertEqual(Lot.objects.count(), 0)
+        self.assertEqual(OcrJob.objects.count(), 0)
+        asset = Asset.objects.get()
+        self.assertEqual(asset.lot, None)
+        self.assertEqual(asset.metadata.get("capture_mode"), "continuous_camera")
+
+
     def test_sync_endpoints_and_schedule_crud(self):
         sector_external_id = uuid.uuid4()
         point_external_id = uuid.uuid4()
