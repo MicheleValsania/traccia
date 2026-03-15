@@ -17,7 +17,7 @@ Statuses used:
 | `README.md` | rewrite | Rewrite around the new target model: Traccia local execution, CookOps central governance. |
 | `doc/progetto/17_target_operating_model.md` | keep | Becomes the primary scope reference for Traccia. |
 | `doc/progetto/03_architecture.md` | rewrite | Update architecture boundaries with CookOps centralization and Drive inbox flow. |
-| `doc/progetto/05_api_contract.md` | rewrite | Keep only API contracts still relevant to Traccia local execution and shared adapters. |
+| `doc/progetto/05_api_contract.md` | keep | Rewritten around local execution APIs, HACCP adapter APIs and the upload-only capture endpoint. |
 | `doc/progetto/15_capture_worker_backup_workflow.md` | rewrite | Keep only the continuous camera and central ingestion flow. |
 | `doc/progetto/16_label_printer_implementation.md` | keep | Still relevant because label execution remains local in Traccia. |
 
@@ -78,6 +78,6 @@ Statuses used:
 1. Rewrite `README.md`.
 2. Rewrite `03_architecture.md`.
 3. Rewrite `15_capture_worker_backup_workflow.md`.
-4. Rewrite `05_api_contract.md` and `12_cookops_traceability_contract_v1.md`.
+4. Rewrite `12_cookops_traceability_contract_v1.md`.
 5. Move deprecated lifecycle and web/tablet docs to `legacy/`.
 6. Revisit `04_data_model.md` once the Traccia main cleanup starts.

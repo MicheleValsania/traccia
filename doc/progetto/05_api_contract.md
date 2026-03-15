@@ -80,19 +80,37 @@ These endpoints still exist locally, but the target governance path is increasin
 
 These endpoints form the main Traccia-to-CookOps operational bridge.
 
-## 4. Deprecated target flows
+## 4. Legacy and transitional APIs
 
-The following APIs may still exist during transition, but they are no longer the target product contract for central traceability ingestion:
-
-### Immediate capture and draft-first flow
+### Continuous capture upload
 - `POST /api/capture/label-photo`
+
+This endpoint is still active, but its role has changed.
+
+It now:
+- uploads the captured image to Drive
+- creates a local `Asset` record only
+- does not create a local draft lot
+- does not trigger the old immediate OCR validation flow
+
+This endpoint should be treated as a capture ingress only.
+
+### Removed local draft-first flow
+
+The following APIs are no longer part of the active Traccia contract:
 - `GET /api/lots/drafts`
 - `POST /api/lots/{lot_id}/validate`
-- `POST /api/lots/reconcile-identical`
+- `POST /api/lots/{lot_id}/transform`
 
 Reason:
-- incoming capture is moving to `continuous camera -> Drive -> CookOps import -> central validation`
-- central lot creation should happen in CookOps, not from local phone-first validation
+- incoming capture now follows `continuous camera -> Drive -> CookOps import -> central validation`
+- central lot creation and validation happen in CookOps
+- local lifecycle execution is handled inside the label workflow, not through standalone lot transformation endpoints
+
+### Still active but central-facing
+- `POST /api/lots/reconcile-identical`
+
+This endpoint remains useful for central reconciliation logic, but it is not part of the local mobile execution flow.
 
 ## 5. Lifecycle note
 
