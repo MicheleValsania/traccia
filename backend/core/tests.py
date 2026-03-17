@@ -224,6 +224,102 @@ class HaccpApiTests(TestCase):
         self.assertEqual(resp["Content-Type"], "image/jpeg")
         self.assertEqual(resp["X-Drive-File-Id"], "drive-file-001")
 
+    def test_alerts_hide_lots_after_dlc_day_ends(self):
+        user = User.objects.create_user(username="alert-op", password="test123")
+        Membership.objects.create(user=user, site=self.site, role=MembershipRole.OPERATOR)
+        self.client.force_authenticate(user=user)
+
+        expired_lot = Lot.objects.create(
+            site=self.site,
+            internal_lot_code="MAIN-20260317-0001",
+            supplier_name="Supplier",
+            received_date=timezone.localdate(),
+            dlc_date=timezone.localdate() - timezone.timedelta(days=1),
+            status=LotStatus.ACTIVE,
+        )
+        expired_lot.schedule_expiry_alerts()
+
+        today_lot = Lot.objects.create(
+            site=self.site,
+            internal_lot_code="MAIN-20260317-0002",
+            supplier_name="Supplier",
+            received_date=timezone.localdate(),
+            dlc_date=timezone.localdate(),
+            status=LotStatus.ACTIVE,
+        )
+        today_lot.schedule_expiry_alerts()
+
+        resp = self.client.get(f"/api/alerts?site_code={self.site.code}")
+
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.json()
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["lot_code"], today_lot.internal_lot_code)
+
+    def test_resolving_latest_alert_hides_lot_even_if_older_alerts_exist(self):
+        user = User.objects.create_user(username="alert-manager", password="test123")
+        Membership.objects.create(user=user, site=self.site, role=MembershipRole.MANAGER)
+        self.client.force_authenticate(user=user)
+
+        lot = Lot.objects.create(
+            site=self.site,
+            internal_lot_code="MAIN-20260317-0003",
+            supplier_name="Supplier",
+            received_date=timezone.localdate(),
+            dlc_date=timezone.localdate(),
+            status=LotStatus.ACTIVE,
+        )
+        lot.schedule_expiry_alerts()
+
+        initial_resp = self.client.get(f"/api/alerts?site_code={self.site.code}")
+        self.assertEqual(initial_resp.status_code, 200)
+        initial_payload = initial_resp.json()
+        self.assertEqual(len(initial_payload), 1)
+        self.assertEqual(initial_payload[0]["alert_type"], "EXPIRED")
+
+        latest_alert = lot.alerts.order_by("-trigger_at", "-id").first()
+        self.assertIsNotNone(latest_alert)
+
+        resolve_resp = self.client.post(
+            f"/api/alerts/{latest_alert.id}/status",
+            {"status": "RESOLVED", "resolved_reason": "DISCARDED"},
+            format="json",
+        )
+        self.assertEqual(resolve_resp.status_code, 200)
+        latest_alert.refresh_from_db()
+        self.assertEqual(latest_alert.resolved_reason, "DISCARDED")
+        self.assertIsNotNone(latest_alert.resolved_at)
+
+        refreshed_resp = self.client.get(f"/api/alerts?site_code={self.site.code}")
+        self.assertEqual(refreshed_resp.status_code, 200)
+        self.assertEqual(refreshed_resp.json(), [])
+
+    def test_resolving_alert_requires_reason(self):
+        user = User.objects.create_user(username="alert-chef", password="test123")
+        Membership.objects.create(user=user, site=self.site, role=MembershipRole.CHEF)
+        self.client.force_authenticate(user=user)
+
+        lot = Lot.objects.create(
+            site=self.site,
+            internal_lot_code="MAIN-20260317-0004",
+            supplier_name="Supplier",
+            received_date=timezone.localdate(),
+            dlc_date=timezone.localdate(),
+            status=LotStatus.ACTIVE,
+        )
+        lot.schedule_expiry_alerts()
+        latest_alert = lot.alerts.order_by("-trigger_at", "-id").first()
+        self.assertIsNotNone(latest_alert)
+
+        resp = self.client.post(
+            f"/api/alerts/{latest_alert.id}/status",
+            {"status": "RESOLVED"},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("resolved_reason", resp.json())
+
 
     def test_ocr_queue_and_validate(self):
         lot = Lot.objects.create(

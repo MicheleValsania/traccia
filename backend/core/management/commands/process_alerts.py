@@ -12,7 +12,7 @@ class Command(BaseCommand):
         resolved = (
             Alert.objects.filter(status__in=[AlertStatus.PENDING, AlertStatus.SENT, AlertStatus.ACKED])
             .exclude(lot__status__in=[LotStatus.ACTIVE, LotStatus.DRAFT])
-            .update(status=AlertStatus.RESOLVED)
+            .update(status=AlertStatus.RESOLVED, resolved_at=now)
         )
         sent = (
             Alert.objects.filter(status=AlertStatus.PENDING, trigger_at__lte=now)

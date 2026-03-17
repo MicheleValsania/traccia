@@ -40,6 +40,8 @@ export type AlertItem = {
   alert_type: "EXPIRY_D3" | "EXPIRY_D2" | "EXPIRY_D1" | "EXPIRED";
   trigger_at: string;
   status: "PENDING" | "SENT" | "ACKED" | "RESOLVED";
+  resolved_at?: string | null;
+  resolved_reason?: "" | "CONSUMED" | "DISCARDED" | "TRANSFORMED";
 };
 
 export type TemperatureReading = {

@@ -3,6 +3,7 @@ from django.utils import timezone
 
 from .models import (
     Alert,
+    AlertResolutionReason,
     AlertStatus,
     Asset,
     ColdPoint,
@@ -382,6 +383,8 @@ class AlertSerializer(serializers.ModelSerializer):
             "alert_type",
             "trigger_at",
             "status",
+            "resolved_at",
+            "resolved_reason",
         ]
 
     def get_days_to_expiry(self, obj):
@@ -393,6 +396,14 @@ class AlertSerializer(serializers.ModelSerializer):
 
 class AlertStatusUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=[AlertStatus.ACKED, AlertStatus.RESOLVED])
+    resolved_reason = serializers.ChoiceField(
+        choices=AlertResolutionReason.choices, required=False, allow_blank=True
+    )
+
+    def validate(self, attrs):
+        if attrs["status"] == AlertStatus.RESOLVED and not attrs.get("resolved_reason"):
+            raise serializers.ValidationError({"resolved_reason": "This field is required when resolving an alert."})
+        return attrs
 
 
 class DraftReviewSerializer(serializers.ModelSerializer):

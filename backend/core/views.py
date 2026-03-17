@@ -1295,6 +1295,7 @@ class AlertListView(generics.ListAPIView):
         qs = (
             Alert.objects.select_related("lot")
             .filter(lot__status__in=[LotStatus.DRAFT, LotStatus.ACTIVE])
+            .filter(lot__dlc_date__gte=timezone.localdate())
             .order_by("trigger_at")
         )
         site_code = self.request.query_params.get("site_code")
@@ -1311,11 +1312,11 @@ class AlertListView(generics.ListAPIView):
             qs = qs.filter(lot__site=site)
         if due_only:
             qs = qs.filter(trigger_at__lte=timezone.now())
-        if not include_resolved:
-            qs = qs.exclude(status="RESOLVED")
         if collapse_by_lot:
             latest_alert_id_for_lot = qs.filter(lot_id=OuterRef("lot_id")).order_by("-trigger_at", "-id").values("id")[:1]
             qs = qs.filter(id=Subquery(latest_alert_id_for_lot)).order_by("trigger_at")
+        if not include_resolved:
+            qs = qs.exclude(status="RESOLVED")
         return qs
 
 
@@ -1327,6 +1328,7 @@ class AlertStatusUpdateView(APIView):
         serializer = AlertStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         next_status = serializer.validated_data["status"]
+        resolved_reason = serializer.validated_data.get("resolved_reason", "")
         try:
             alert = Alert.objects.select_for_update().select_related("lot__site").get(id=alert_id)
         except Alert.DoesNotExist:
@@ -1343,7 +1345,12 @@ class AlertStatusUpdateView(APIView):
         alert.status = next_status
         if next_status == "ACKED":
             alert.acked_at = timezone.now()
-        alert.save(update_fields=["status", "acked_at"])
+            alert.resolved_at = None
+            alert.resolved_reason = ""
+        elif next_status == "RESOLVED":
+            alert.resolved_at = timezone.now()
+            alert.resolved_reason = resolved_reason
+        alert.save(update_fields=["status", "acked_at", "resolved_at", "resolved_reason"])
 
         log_audit_event(
             action="ALERT_STATUS_UPDATED",
@@ -1351,7 +1358,11 @@ class AlertStatusUpdateView(APIView):
             site=alert.lot.site,
             object_type="Alert",
             object_id=str(alert.id),
-            payload={"status": next_status, "lot_code": alert.lot.internal_lot_code},
+            payload={
+                "status": next_status,
+                "lot_code": alert.lot.internal_lot_code,
+                "resolved_reason": alert.resolved_reason,
+            },
         )
         return Response({"alert_id": str(alert.id), "status": alert.status}, status=status.HTTP_200_OK)
 

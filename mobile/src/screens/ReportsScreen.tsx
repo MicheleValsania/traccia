@@ -1,7 +1,7 @@
 import React from "react";
 import { Linking, Pressable, Text, View } from "react-native";
 
-import { fetchAlerts, reportCsvUrl, reportPdfUrl, reportTemperatureCsvUrl, updateAlertStatus } from "../api";
+import { AlertResolutionReason, fetchAlerts, reportCsvUrl, reportPdfUrl, reportTemperatureCsvUrl, updateAlertStatus } from "../api";
 import { appStyles } from "../styles";
 import { AlertItem } from "../types";
 
@@ -16,6 +16,12 @@ const ALERT_LABELS: Record<AlertItem["alert_type"], string> = {
   EXPIRY_D1: "Scade domani",
   EXPIRED: "Scaduto",
 };
+
+const ALERT_ACTIONS: Array<{ reason: AlertResolutionReason; label: string; style: "secondary" | "danger" | "primary" }> = [
+  { reason: "CONSUMED", label: "Consumato", style: "secondary" },
+  { reason: "DISCARDED", label: "Smaltito", style: "danger" },
+  { reason: "TRANSFORMED", label: "Trasformato", style: "primary" },
+];
 
 function formatDateFr(dateIso: string | null): string {
   if (!dateIso) return "-";
@@ -41,7 +47,7 @@ function AlertRow({
 }: {
   alert: AlertItem;
   canAct: boolean;
-  onMark: (alertId: string, status: "ACKED" | "RESOLVED") => void;
+  onMark: (alertId: string, reason: AlertResolutionReason) => void;
 }) {
   return (
     <View style={appStyles.draftRow}>
@@ -58,21 +64,35 @@ function AlertRow({
               : `Scade tra ${alert.days_to_expiry} giorni`}
         </Text>
       ) : null}
+      <Text style={appStyles.tokenPreview}>Chiudi alert come:</Text>
       <View style={appStyles.tabsRow}>
-        <Pressable
-          style={({ pressed }) => [appStyles.buttonSecondary, { flex: 1, marginTop: 0 }, pressed ? appStyles.buttonSecondaryPressed : undefined]}
-          onPress={() => onMark(alert.id, "ACKED")}
-          disabled={!canAct}
-        >
-          <Text style={appStyles.buttonSecondaryText}>Ack</Text>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [appStyles.button, { flex: 1, marginTop: 0 }, pressed ? appStyles.buttonPressed : undefined]}
-          onPress={() => onMark(alert.id, "RESOLVED")}
-          disabled={!canAct}
-        >
-          <Text style={appStyles.buttonText}>Risolto</Text>
-        </Pressable>
+        {ALERT_ACTIONS.map((action) => {
+          const buttonStyle =
+            action.style === "secondary"
+              ? appStyles.buttonSecondary
+              : action.style === "danger"
+                ? appStyles.buttonDanger
+                : appStyles.button;
+          const pressedStyle =
+            action.style === "secondary"
+              ? appStyles.buttonSecondaryPressed
+              : action.style === "danger"
+                ? appStyles.buttonDangerPressed
+                : appStyles.buttonPressed;
+          const textStyle =
+            action.style === "secondary" ? appStyles.buttonSecondaryText : appStyles.buttonText;
+
+          return (
+            <Pressable
+              key={action.reason}
+              style={({ pressed }) => [buttonStyle, { flex: 1, marginTop: 4, minWidth: 96 }, pressed ? pressedStyle : undefined]}
+              onPress={() => onMark(alert.id, action.reason)}
+              disabled={!canAct}
+            >
+              <Text style={textStyle}>{action.label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
@@ -100,9 +120,9 @@ export function ReportsScreen(props: Props) {
     }
   }
 
-  async function markAlert(alertId: string, status: "ACKED" | "RESOLVED") {
+  async function markAlert(alertId: string, reason: AlertResolutionReason) {
     try {
-      await updateAlertStatus(props.token, alertId, status);
+      await updateAlertStatus(props.token, alertId, "RESOLVED", reason);
       await refreshAlerts();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Errore aggiornamento alert.");
