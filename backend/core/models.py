@@ -170,6 +170,12 @@ class AlertStatus(models.TextChoices):
     RESOLVED = "RESOLVED", "RESOLVED"
 
 
+class AlertResolutionReason(models.TextChoices):
+    CONSUMED = "CONSUMED", "CONSUMED"
+    DISCARDED = "DISCARDED", "DISCARDED"
+    TRANSFORMED = "TRANSFORMED", "TRANSFORMED"
+
+
 class Alert(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     lot = models.ForeignKey(Lot, on_delete=models.CASCADE, related_name="alerts")
@@ -178,6 +184,8 @@ class Alert(models.Model):
     status = models.CharField(max_length=16, choices=AlertStatus.choices, default=AlertStatus.PENDING)
     sent_at = models.DateTimeField(null=True, blank=True)
     acked_at = models.DateTimeField(null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_reason = models.CharField(max_length=24, choices=AlertResolutionReason.choices, blank=True, default="")
 
 
 class OcrJobStatus(models.TextChoices):

@@ -276,6 +276,15 @@ export const appStyles = StyleSheet.create({
   buttonSecondaryPressed: { backgroundColor: COLORS.primarySoft },
   buttonSecondaryText: { color: COLORS.primary, textAlign: "center", ...TYPOGRAPHY.subtitle2, fontFamily: FONT },
 
+  buttonDanger: {
+    backgroundColor: COLORS.critical,
+    paddingVertical: 12,
+    borderRadius: 12,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  buttonDangerPressed: { backgroundColor: "#a91f33" },
+
   sectionTitle: { ...TYPOGRAPHY.h3, color: COLORS.text, fontFamily: FONT, marginBottom: SPACING.xs },
   infoText: { color: COLORS.primary, ...TYPOGRAPHY.caption, fontFamily: FONT },
 

@@ -13,6 +13,8 @@ import {
   TemperatureRoute,
 } from "./types";
 
+export type AlertResolutionReason = Exclude<AlertItem["resolved_reason"], "" | undefined | null>;
+
 function buildApiBase(): string {
   const raw = (process.env.EXPO_PUBLIC_API_BASE || "").trim();
   if (!raw) {
@@ -513,11 +515,12 @@ export async function fetchTemperatureRouteSequence(token: string, routeId: stri
 export async function updateAlertStatus(
   token: string,
   alertId: string,
-  status: "ACKED" | "RESOLVED",
+  status: "RESOLVED",
+  resolvedReason: AlertResolutionReason,
 ): Promise<void> {
   const response = await fetch(
     `${API_BASE}/alerts/${alertId}/status`,
-    withAuth(token, { method: "POST", body: JSON.stringify({ status }) }),
+    withAuth(token, { method: "POST", body: JSON.stringify({ status, resolved_reason: resolvedReason }) }),
   );
   if (!response.ok) {
     const details = await response.text();
