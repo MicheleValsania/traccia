@@ -34,21 +34,34 @@ export function CleaningScreen(props: Props) {
   async function loadData() {
     setLoading(true);
     try {
-      const [sectorRows, scheduleRows] = await Promise.all([
+      const [sectorResult, scheduleResult] = await Promise.allSettled([
         fetchHaccpSectors(props.token, props.siteCode),
         fetchHaccpSchedules(props.token, props.siteCode, "cleaning"),
       ]);
-      setSectorOptions(sectorRows.map((row) => ({ id: row.id, name: row.name })));
-      setSchedules(scheduleRows);
-      const dueIds = Object.fromEntries(
-        scheduleRows
-          .filter((row) => row.status === "planned" && row.starts_at <= startOfTodayIso())
-          .map((row) => [row.id, true]),
-      );
-      setSelectedIds(dueIds);
-      setInfoMessage(`Pulizie caricate: ${scheduleRows.length}`);
-    } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore caricamento pulizie.");
+
+      if (sectorResult.status === "fulfilled") {
+        setSectorOptions(sectorResult.value.map((row) => ({ id: row.id, name: row.name })));
+      }
+
+      if (scheduleResult.status === "fulfilled") {
+        setSchedules(scheduleResult.value);
+        const dueIds = Object.fromEntries(
+          scheduleResult.value
+            .filter((row) => row.status === "planned" && row.starts_at <= startOfTodayIso())
+            .map((row) => [row.id, true]),
+        );
+        setSelectedIds(dueIds);
+        setInfoMessage(`Pulizie caricate: ${scheduleResult.value.length}`);
+      } else {
+        setSchedules([]);
+        setSelectedIds({});
+        props.setError(scheduleResult.reason instanceof Error ? scheduleResult.reason.message : "Errore caricamento planning pulizie.");
+        setInfoMessage("Planning pulizie non disponibile al momento.");
+      }
+
+      if (sectorResult.status === "rejected") {
+        props.setError(sectorResult.reason instanceof Error ? sectorResult.reason.message : "Errore caricamento settori HACCP.");
+      }
     } finally {
       setLoading(false);
     }
