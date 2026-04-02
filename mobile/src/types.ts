@@ -154,6 +154,7 @@ export type HaccpSchedule = {
   recurrence_rule: Record<string, unknown>;
   status: "planned" | "done" | "skipped" | "cancelled";
   metadata: Record<string, unknown>;
+  completed_at: string | null;
 };
 
 export type MeResponse = {
@@ -200,3 +201,5 @@ export type LabelPrintJob = {
 };
 
 export type TabKey = "camera" | "dashboard" | "temperatures" | "cleaning" | "labels" | "settings";
+
+

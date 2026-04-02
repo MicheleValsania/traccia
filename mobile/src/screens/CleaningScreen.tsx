@@ -17,6 +17,11 @@ function startOfTodayIso(): string {
   return now.toISOString();
 }
 
+function formatDateTime(value: string | null): string {
+  if (!value) return "-";
+  return new Date(value).toLocaleString();
+}
+
 export function CleaningScreen(props: Props) {
   const [loading, setLoading] = React.useState(false);
   const [schedules, setSchedules] = React.useState<HaccpSchedule[]>([]);
@@ -87,6 +92,18 @@ export function CleaningScreen(props: Props) {
     }
     return Array.from(groups.values());
   }, [filteredRows]);
+
+  const completedRows = React.useMemo(() => {
+    const rows = schedules
+      .filter((row) => row.status === "done" && row.completed_at)
+      .filter((row) => (selectedSector === "all" ? true : row.sector === selectedSector))
+      .sort((a, b) => {
+        const left = a.completed_at ? new Date(a.completed_at).getTime() : 0;
+        const right = b.completed_at ? new Date(b.completed_at).getTime() : 0;
+        return right - left;
+      });
+    return rows.slice(0, 20);
+  }, [schedules, selectedSector]);
 
   function toggleSelected(id: string) {
     setSelectedIds((current) => ({ ...current, [id]: !current[id] }));
@@ -174,7 +191,7 @@ export function CleaningScreen(props: Props) {
                   <View style={{ flex: 1, gap: 4 }}>
                     <Text style={appStyles.listTitle}>{row.title}</Text>
                     <Text style={appStyles.listMeta}>{row.area || row.cold_point_label || row.sector_label || "Pulizia sito"}</Text>
-                    <Text style={appStyles.listMeta}>Prevista: {new Date(row.starts_at).toLocaleString()}</Text>
+                    <Text style={appStyles.listMeta}>Prevista: {formatDateTime(row.starts_at)}</Text>
                   </View>
                   <View style={[appStyles.statusPill, selected ? appStyles.statusResolved : appStyles.statusPending]}>
                     <Text style={selected ? appStyles.statusResolvedText : appStyles.statusPendingText}>{selected ? "Selezionata" : "Esclusa"}</Text>
@@ -185,6 +202,27 @@ export function CleaningScreen(props: Props) {
           </View>
         );
       })}
+
+      <View style={appStyles.card}>
+        <Text style={appStyles.sectionTitle}>Registro convalide</Text>
+        <Text style={appStyles.muted}>Ultime pulizie confermate per il sito o la sezione selezionata.</Text>
+        {completedRows.length === 0 ? (
+          <Text style={appStyles.listEmpty}>Nessuna convalida registrata per questo filtro.</Text>
+        ) : (
+          completedRows.map((row) => (
+            <View key={`done-${row.id}`} style={appStyles.listItem}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={appStyles.listTitle}>{row.title}</Text>
+                <Text style={appStyles.listMeta}>{row.area || row.cold_point_label || row.sector_label || "Pulizia sito"}</Text>
+                <Text style={appStyles.listMeta}>Convalidata: {formatDateTime(row.completed_at)}</Text>
+              </View>
+              <View style={[appStyles.statusPill, appStyles.statusResolved]}>
+                <Text style={appStyles.statusResolvedText}>Done</Text>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
     </ScrollView>
   );
 }

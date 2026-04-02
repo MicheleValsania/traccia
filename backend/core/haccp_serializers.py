@@ -220,6 +220,7 @@ def serialize_schedule(row: HaccpSchedule) -> dict:
         "recurrence_rule": row.recurrence_rule or {},
         "status": row.status,
         "metadata": row.metadata or {},
+        "completed_at": row.completed_at.isoformat() if row.completed_at else None,
     }
 
 
@@ -260,3 +261,5 @@ def serialize_label_session(job: LabelPrintJob) -> dict:
         "production_date": job.production_date.isoformat(),
         "dlc_date": job.dlc_date.isoformat(),
     }
+
+

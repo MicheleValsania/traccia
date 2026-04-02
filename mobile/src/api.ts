@@ -157,6 +157,7 @@ export async function fetchHaccpSchedules(
         recurrence_rule: (row.recurrence_rule ?? {}) as Record<string, unknown>,
         status: String(row.status ?? "planned") as HaccpSchedule["status"],
         metadata: (row.metadata ?? {}) as Record<string, unknown>,
+        completed_at: row.completed_at == null ? null : String(row.completed_at),
       }))
     : [];
 }
@@ -631,3 +632,5 @@ export async function updateAlertStatus(
     throw new Error(details || "Aggiornamento alert fallito.");
   }
 }
+
+
