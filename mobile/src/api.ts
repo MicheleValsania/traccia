@@ -4,6 +4,7 @@ import {
   CaptureUploadResponse,
   ColdPoint,
   ColdSector,
+  HaccpSchedule,
   LabelPrintJob,
   LabelProfile,
   MeResponse,
@@ -71,6 +72,109 @@ export async function fetchMe(token: string): Promise<MeResponse> {
     throw new Error(details || "Caricamento profilo utente fallito.");
   }
   return (await response.json()) as MeResponse;
+}
+
+export async function fetchHaccpSectors(token: string, siteCode: string): Promise<ColdSector[]> {
+  const response = await fetch(
+    `${API_BASE}/v1/haccp/sectors/?site=${encodeURIComponent(siteCode)}`,
+    withAuth(token, { method: "GET" }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento settori HACCP fallito.");
+  }
+  const body = (await response.json()) as { results?: Array<Record<string, unknown>> };
+  return Array.isArray(body.results)
+    ? body.results.map((row) => ({
+        id: String(row.id ?? ""),
+        site_code: String(row.site_code ?? siteCode),
+        name: String(row.name ?? ""),
+        sort_order: Number(row.sort_order ?? 0),
+        is_active: row.is_active !== false,
+        created_at: "",
+        updated_at: "",
+      }))
+    : [];
+}
+
+export async function fetchHaccpColdPoints(token: string, siteCode: string, sectorId?: string): Promise<ColdPoint[]> {
+  const query = new URLSearchParams({ site: siteCode });
+  if (sectorId) query.set("sector", sectorId);
+  const response = await fetch(`${API_BASE}/v1/haccp/cold-points/?${query.toString()}`, withAuth(token, { method: "GET" }));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento punti freddo HACCP fallito.");
+  }
+  const body = (await response.json()) as { results?: Array<Record<string, unknown>> };
+  return Array.isArray(body.results)
+    ? body.results.map((row) => ({
+        id: String(row.id ?? ""),
+        site_code: String(row.site_code ?? siteCode),
+        sector_id: String(row.sector ?? ""),
+        sector_name: String(row.sector_label ?? ""),
+        name: String(row.name ?? row.cold_point_label ?? ""),
+        device_type: String(row.equipment_type ?? "OTHER") as ColdPoint["device_type"],
+        sort_order: Number(row.sort_order ?? 0),
+        min_temp_celsius: row.min_temp_celsius == null ? null : String(row.min_temp_celsius),
+        max_temp_celsius: row.max_temp_celsius == null ? null : String(row.max_temp_celsius),
+        is_active: row.is_active !== false,
+        created_at: "",
+        updated_at: "",
+      }))
+    : [];
+}
+
+export async function fetchHaccpSchedules(
+  token: string,
+  siteCode: string,
+  taskType?: "label_print" | "temperature_register" | "cleaning",
+): Promise<HaccpSchedule[]> {
+  const query = new URLSearchParams({ site: siteCode });
+  if (taskType) query.set("task_type", taskType);
+  const response = await fetch(`${API_BASE}/v1/haccp/schedules/?${query.toString()}`, withAuth(token, { method: "GET" }));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento planning HACCP fallito.");
+  }
+  const body = (await response.json()) as { results?: Array<Record<string, unknown>> };
+  return Array.isArray(body.results)
+    ? body.results.map((row) => ({
+        id: String(row.id ?? ""),
+        site: String(row.site ?? ""),
+        site_code: String(row.site_code ?? siteCode),
+        task_type: String(row.task_type ?? "cleaning") as HaccpSchedule["task_type"],
+        title: String(row.title ?? ""),
+        area: row.area == null ? null : String(row.area),
+        sector: row.sector == null ? null : String(row.sector),
+        sector_code: String(row.sector_code ?? ""),
+        sector_label: String(row.sector_label ?? ""),
+        cold_point: row.cold_point == null ? null : String(row.cold_point),
+        cold_point_code: String(row.cold_point_code ?? ""),
+        cold_point_label: String(row.cold_point_label ?? ""),
+        equipment_type: String(row.equipment_type ?? "") as HaccpSchedule["equipment_type"],
+        starts_at: String(row.starts_at ?? ""),
+        ends_at: row.ends_at == null ? null : String(row.ends_at),
+        recurrence_rule: (row.recurrence_rule ?? {}) as Record<string, unknown>,
+        status: String(row.status ?? "planned") as HaccpSchedule["status"],
+        metadata: (row.metadata ?? {}) as Record<string, unknown>,
+      }))
+    : [];
+}
+
+export async function updateHaccpScheduleStatus(
+  token: string,
+  scheduleId: string,
+  statusValue: HaccpSchedule["status"],
+): Promise<HaccpSchedule> {
+  const response = await fetch(
+    `${API_BASE}/v1/haccp/schedules/${scheduleId}/`,
+    withAuth(token, { method: "PATCH", body: JSON.stringify({ status: statusValue }) }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Aggiornamento schedule HACCP fallito.");
+  }
+  return (await response.json()) as HaccpSchedule;
 }
 
 export async function captureLabelPhoto(params: {

@@ -287,6 +287,36 @@ export const appStyles = StyleSheet.create({
 
   sectionTitle: { ...TYPOGRAPHY.h3, color: COLORS.text, fontFamily: FONT, marginBottom: SPACING.xs },
   infoText: { color: COLORS.primary, ...TYPOGRAPHY.caption, fontFamily: FONT },
+  muted: { color: COLORS.textMuted, ...TYPOGRAPHY.body2, fontFamily: FONT },
+  listEmpty: { color: COLORS.textMuted, ...TYPOGRAPHY.body1, fontFamily: FONT },
+  listItem: {
+    borderWidth: 1,
+    borderColor: COLORS.borderSoft,
+    borderRadius: 12,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+  },
+  listTitle: { color: COLORS.text, ...TYPOGRAPHY.subtitle2, fontFamily: FONT },
+  listMeta: { color: COLORS.textMuted, ...TYPOGRAPHY.body2, fontFamily: FONT },
+  statusPill: {
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderWidth: 1,
+  },
+  statusResolved: {
+    backgroundColor: COLORS.primarySoft,
+    borderColor: COLORS.primary,
+  },
+  statusResolvedText: { color: COLORS.primary, ...TYPOGRAPHY.caption, fontFamily: FONT },
+  statusPending: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+  },
+  statusPendingText: { color: COLORS.textMuted, ...TYPOGRAPHY.caption, fontFamily: FONT },
 
   linkButton: { paddingVertical: 4 },
   linkText: { color: COLORS.accent, ...TYPOGRAPHY.caption, fontFamily: FONT },

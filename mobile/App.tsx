@@ -7,6 +7,7 @@ import { fetchMe, loginToken } from "./src/api";
 import { chefsideLogoXml } from "./src/assets/chefsideLogoXml";
 import { AuthCard } from "./src/components/AuthCard";
 import { CaptureScreen } from "./src/screens/CaptureScreen";
+import { CleaningScreen } from "./src/screens/CleaningScreen";
 import { LabelsScreen } from "./src/screens/LabelsScreen";
 import { ReportsScreen } from "./src/screens/ReportsScreen";
 import { TemperatureScreen } from "./src/screens/TemperatureScreen";
@@ -17,6 +18,7 @@ const TABS: Array<{ key: TabKey; icon: string; label: string }> = [
   { key: "camera", icon: "\u{1F4F7}", label: "Camera" },
   { key: "dashboard", icon: "\u{1F37D}\uFE0F", label: "Dashboard" },
   { key: "temperatures", icon: "\u{1F321}\uFE0F", label: "Temperature" },
+  { key: "cleaning", icon: "\u{1F9FD}", label: "Pulizie" },
   { key: "labels", icon: "\u{1F3F7}\uFE0F", label: "Etichette" },
   { key: "settings", icon: "\u2699\uFE0F", label: "Parametri" },
 ];
@@ -118,7 +120,10 @@ export default function App() {
         ) : null}
 
         {token && activeTab === "temperatures" ? (
-          <TemperatureScreen token={token} siteCode={siteCode} setSiteCode={setSiteCode} setError={setError} />
+          <TemperatureScreen token={token} siteCode={siteCode} setError={setError} />
+        ) : null}
+        {token && activeTab === "cleaning" ? (
+          <CleaningScreen token={token} siteCode={siteCode} setError={setError} />
         ) : null}
         {token && activeTab === "labels" ? (
           <LabelsScreen token={token} siteCode={siteCode} setError={setError} />

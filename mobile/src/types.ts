@@ -134,6 +134,28 @@ export type TemperatureRoute = {
   updated_at: string;
 };
 
+
+export type HaccpSchedule = {
+  id: string;
+  site: string;
+  site_code: string;
+  task_type: "label_print" | "temperature_register" | "cleaning";
+  title: string;
+  area: string | null;
+  sector: string | null;
+  sector_code: string;
+  sector_label: string;
+  cold_point: string | null;
+  cold_point_code: string;
+  cold_point_label: string;
+  equipment_type: "FRIDGE" | "FREEZER" | "COLD_ROOM" | "OTHER" | "";
+  starts_at: string;
+  ends_at: string | null;
+  recurrence_rule: Record<string, unknown>;
+  status: "planned" | "done" | "skipped" | "cancelled";
+  metadata: Record<string, unknown>;
+};
+
 export type MeResponse = {
   username: string;
   is_superuser: boolean;
@@ -177,4 +199,4 @@ export type LabelPrintJob = {
   created_at: string;
 };
 
-export type TabKey = "camera" | "dashboard" | "temperatures" | "labels" | "settings";
+export type TabKey = "camera" | "dashboard" | "temperatures" | "cleaning" | "labels" | "settings";
