@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from django.conf import settings
 from django.db import transaction
 from django.http import HttpResponse
@@ -96,20 +98,37 @@ def _ensure_access(request, site: Site | None = None, *, write: bool = False):
     return None
 
 
+def _parse_uuid_or_none(value: str | None):
+    ident = str(value or "").strip()
+    if not ident:
+        return None
+    try:
+        return uuid.UUID(ident)
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
 def _resolve_site(identifier) -> Site | None:
     ident = str(identifier or "").strip()
     if not ident:
         return None
-    return Site.objects.filter(Q(id=ident) | Q(external_id=ident) | Q(code=ident)).first()
+    parsed_uuid = _parse_uuid_or_none(ident)
+    query = Site.objects.all()
+    if parsed_uuid:
+        hit = query.filter(Q(id=parsed_uuid) | Q(external_id=parsed_uuid)).first()
+        if hit:
+            return hit
+    return query.filter(code=ident).first()
 
 
 def _resolve_sector(site: Site, identifier: str | None = None, *, external_code: str = "", name: str = "") -> ColdSector | None:
     ident = str(identifier or "").strip()
     code = str(external_code or "").strip()
     title = str(name or "").strip()
+    parsed_uuid = _parse_uuid_or_none(ident)
     query = ColdSector.objects.filter(site=site)
-    if ident:
-        hit = query.filter(Q(id=ident) | Q(external_id=ident)).first()
+    if parsed_uuid:
+        hit = query.filter(Q(id=parsed_uuid) | Q(external_id=parsed_uuid)).first()
         if hit:
             return hit
     if code:
@@ -125,9 +144,10 @@ def _resolve_cold_point(site: Site, identifier: str | None = None, *, external_c
     ident = str(identifier or "").strip()
     code = str(external_code or "").strip()
     title = str(name or "").strip()
+    parsed_uuid = _parse_uuid_or_none(ident)
     query = ColdPoint.objects.select_related("sector").filter(site=site)
-    if ident:
-        hit = query.filter(Q(id=ident) | Q(external_id=ident)).first()
+    if parsed_uuid:
+        hit = query.filter(Q(id=parsed_uuid) | Q(external_id=parsed_uuid)).first()
         if hit:
             return hit
     if code:
@@ -967,3 +987,4 @@ class HaccpLabelSessionListCreateView(APIView):
             payload={"profile_id": str(profile.id), "quantity": job.copies, "status": payload["session_status"]},
         )
         return Response(serialize_label_session(job), status=status.HTTP_201_CREATED)
+
