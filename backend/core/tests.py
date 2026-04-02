@@ -441,6 +441,75 @@ class HaccpApiTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.json()["results"]), 1)
 
+    def test_reconcile_identical_defaults_stock_unit_to_pc_for_packaged_items(self):
+        user = User.objects.create_user(username="reconcile-op", password="test123")
+        Membership.objects.create(user=user, site=self.site, role=MembershipRole.OPERATOR)
+        self.client.force_authenticate(user=user)
+
+        resp = self.client.post(
+            "/api/lots/reconcile-identical",
+            {
+                "site_code": self.site.code,
+                "supplier_name": "ATSCASH",
+                "supplier_lot_code": "LOT-RIZ-1",
+                "dlc_date": "2026-06-30",
+                "quantity_value": "1.000",
+                "quantity_unit": "kg",
+                "package_count": 1,
+                "critical_attributes": {"raw_name": "5KG RIZ BASMATI DAAWAT"},
+                "document_lines": [
+                    {
+                        "document_type": "INVOICE",
+                        "document_number": "FAC-001",
+                        "line_ref": "1",
+                        "qty_value": "1.000",
+                        "qty_unit": "kg",
+                        "rationale": {"raw_name": "5KG RIZ BASMATI DAAWAT"},
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 201)
+        lot = Lot.objects.get(supplier_lot_code="LOT-RIZ-1")
+        self.assertEqual(lot.quantity_unit, "pc")
+        self.assertEqual(resp.json()["quantity_unit"], "pc")
+
+    def test_reconcile_identical_keeps_weight_unit_for_true_weight_quantity(self):
+        user = User.objects.create_user(username="reconcile-chef", password="test123")
+        Membership.objects.create(user=user, site=self.site, role=MembershipRole.CHEF)
+        self.client.force_authenticate(user=user)
+
+        resp = self.client.post(
+            "/api/lots/reconcile-identical",
+            {
+                "site_code": self.site.code,
+                "supplier_name": "ATSCASH",
+                "supplier_lot_code": "LOT-PDT-1",
+                "dlc_date": "2026-06-30",
+                "quantity_value": "10.000",
+                "quantity_unit": "kg",
+                "package_count": 1,
+                "critical_attributes": {"raw_name": "SAC POMMES DE TERRE 10KG"},
+                "document_lines": [
+                    {
+                        "document_type": "INVOICE",
+                        "document_number": "FAC-002",
+                        "line_ref": "1",
+                        "qty_value": "10.000",
+                        "qty_unit": "kg",
+                        "rationale": {"raw_name": "SAC POMMES DE TERRE 10KG"},
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 201)
+        lot = Lot.objects.get(supplier_lot_code="LOT-PDT-1")
+        self.assertEqual(lot.quantity_unit, "kg")
+
     def test_me_returns_all_sites_for_superuser(self):
         Site.objects.create(code="SECOND", name="Second Site")
         user = User.objects.create_user(username="super", password="test123")

@@ -7,6 +7,7 @@ import re
 import time
 from base64 import b64encode
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 from io import BytesIO, StringIO
 from typing import Any
 
@@ -29,6 +30,8 @@ except Exception:  # pragma: no cover
     Anthropic = None
 
 logger = logging.getLogger(__name__)
+
+PACKAGING_MEASURE_RE = re.compile(r"\b[0-9]+(?:[.,][0-9]+)?\s*(kg|g|gr|grammes|gramme|l|ml|cl)\b", re.IGNORECASE)
 
 FR_MONTHS = {
     "janvier": 1,
@@ -79,6 +82,70 @@ def _normalize_weight(value: str) -> str:
     unit_map = {"gr": "g", "grammes": "g", "gramme": "g"}
     normalized_unit = unit_map.get(unit, unit)
     return f"{number} {normalized_unit}"
+
+
+def normalize_quantity_unit(value: str | None) -> str:
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return ""
+    raw = raw.replace(".", "")
+    raw = re.sub(r"\s+", "", raw)
+    synonyms = {
+        "gr": "g",
+        "gramme": "g",
+        "grammes": "g",
+        "kgs": "kg",
+        "kilogramme": "kg",
+        "kilogrammes": "kg",
+        "litre": "l",
+        "litres": "l",
+        "lt": "l",
+        "lts": "l",
+        "pcs": "pc",
+        "piece": "pc",
+        "pieces": "pc",
+        "pz": "pc",
+        "unite": "pc",
+        "unites": "pc",
+        "unit": "pc",
+        "units": "pc",
+    }
+    return synonyms.get(raw, raw)
+
+
+def infer_inventory_quantity_unit(
+    quantity_unit: str | None,
+    quantity_value: Any,
+    *,
+    package_count: int = 1,
+    product_texts: list[str] | None = None,
+) -> str:
+    normalized_unit = normalize_quantity_unit(quantity_unit)
+    if normalized_unit not in {"kg", "g", "l", "ml", "cl"}:
+        return normalized_unit
+
+    text_blob = " ".join(str(text or "").strip() for text in (product_texts or []) if str(text or "").strip())
+    if not PACKAGING_MEASURE_RE.search(text_blob):
+        return normalized_unit
+
+    try:
+        qty = Decimal(str(quantity_value))
+    except (InvalidOperation, TypeError, ValueError):
+        return normalized_unit
+
+    if qty <= 0 or qty != qty.to_integral_value():
+        return normalized_unit
+
+    try:
+        packages = Decimal(str(package_count))
+    except (InvalidOperation, TypeError, ValueError):
+        packages = Decimal("0")
+
+    if packages > 0 and qty == packages:
+        return "pc"
+    if qty == Decimal("1"):
+        return "pc"
+    return normalized_unit
 
 
 def _weight_to_grams(value: str) -> float | None:

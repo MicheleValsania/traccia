@@ -20,7 +20,7 @@ from .models import (
     TemperatureRoute,
     TemperatureRouteStep,
 )
-from .services import normalize_temperature_unit, parse_date_or_none, suggest_products
+from .services import infer_inventory_quantity_unit, normalize_quantity_unit, normalize_temperature_unit, parse_date_or_none, suggest_products
 
 
 class FicheImportSerializer(serializers.Serializer):
@@ -550,4 +550,31 @@ class ReconcileIdenticalLotsSerializer(serializers.Serializer):
         fiche_product_id = attrs.get("fiche_product_id")
         if fiche_product_id and not FicheProduct.objects.filter(id=fiche_product_id).exists():
             raise serializers.ValidationError("Unknown fiche_product_id.")
+        for line in attrs.get("document_lines", []):
+            line["qty_unit"] = normalize_quantity_unit(line.get("qty_unit"))
+        attrs["quantity_unit"] = infer_inventory_quantity_unit(
+            attrs.get("quantity_unit"),
+            attrs.get("quantity_value"),
+            package_count=attrs.get("package_count", 1),
+            product_texts=self._collect_product_texts(attrs),
+        )
         return attrs
+
+    def _collect_product_texts(self, attrs):
+        texts = []
+        critical_attributes = attrs.get("critical_attributes") or {}
+        texts.extend(self._extract_text_values(critical_attributes))
+        for line in attrs.get("document_lines", []):
+            texts.extend(self._extract_text_values(line))
+            texts.extend(self._extract_text_values(line.get("rationale") or {}))
+        return texts
+
+    def _extract_text_values(self, payload):
+        if not isinstance(payload, dict):
+            return []
+        values = []
+        for key in ("raw_name", "name", "display_name", "product_name", "product_text", "description", "label"):
+            value = str(payload.get(key) or "").strip()
+            if value:
+                values.append(value)
+        return values
