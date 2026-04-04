@@ -13,6 +13,7 @@ import {
   TemperatureReading,
   TemperatureRoute,
 } from "./types";
+import { translate } from "./i18n";
 
 export type AlertResolutionReason = Exclude<AlertItem["resolved_reason"], "" | undefined | null>;
 
@@ -49,7 +50,7 @@ export async function loginToken(username: string, password: string): Promise<st
       withAuth("", { method: "POST", body: JSON.stringify({ username, password }) }),
     );
   } catch (error) {
-    throw new Error(`API non raggiungibile (${API_BASE}/auth/token). Verifica EXPO_PUBLIC_API_BASE e rete.`);
+    throw new Error(translate("api.login_unreachable", { value: `${API_BASE}/auth/token` }));
   }
   if (!response.ok) {
     let detail = "";
@@ -59,7 +60,7 @@ export async function loginToken(username: string, password: string): Promise<st
     } catch {
       detail = (await response.text()).trim();
     }
-    throw new Error(`Login fallito [${response.status}]${detail ? `: ${detail}` : ""}`);
+    throw new Error(translate("api.login_failed", { status: response.status, detail: detail ? `: ${detail}` : "" }));
   }
   const body = (await response.json()) as { token: string };
   return body.token;
@@ -69,7 +70,7 @@ export async function fetchMe(token: string): Promise<MeResponse> {
   const response = await fetch(`${API_BASE}/auth/me`, withAuth(token, { method: "GET" }));
   if (!response.ok) {
     const details = await response.text();
-    throw new Error(details || "Caricamento profilo utente fallito.");
+    throw new Error(details || translate("api.me_failed"));
   }
   return (await response.json()) as MeResponse;
 }

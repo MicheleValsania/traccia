@@ -2,6 +2,7 @@ import React from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
 import { fetchHaccpSchedules, fetchHaccpSectors, updateHaccpScheduleStatus } from "../api";
+import { useI18n } from "../i18n";
 import { appStyles } from "../styles";
 import { HaccpSchedule } from "../types";
 
@@ -23,6 +24,7 @@ function formatDateTime(value: string | null): string {
 }
 
 export function CleaningScreen(props: Props) {
+  const { t } = useI18n();
   const [loading, setLoading] = React.useState(false);
   const [schedules, setSchedules] = React.useState<HaccpSchedule[]>([]);
   const [selectedSector, setSelectedSector] = React.useState<string>("all");
@@ -56,16 +58,16 @@ export function CleaningScreen(props: Props) {
             .map((row) => [row.id, true]),
         );
         setSelectedIds(dueIds);
-        setInfoMessage(`Pulizie caricate: ${scheduleResult.value.length}`);
+        setInfoMessage(t("cleaning.loaded", { count: scheduleResult.value.length }));
       } else {
         setSchedules([]);
         setSelectedIds({});
-        props.setError(scheduleResult.reason instanceof Error ? scheduleResult.reason.message : "Errore caricamento planning pulizie.");
-        setInfoMessage("Planning pulizie non disponibile al momento.");
+        props.setError(scheduleResult.reason instanceof Error ? scheduleResult.reason.message : t("cleaning.schedule_error"));
+        setInfoMessage(t("cleaning.unavailable"));
       }
 
       if (sectorResult.status === "rejected") {
-        props.setError(sectorResult.reason instanceof Error ? sectorResult.reason.message : "Errore caricamento settori HACCP.");
+        props.setError(sectorResult.reason instanceof Error ? sectorResult.reason.message : t("cleaning.sectors_error"));
       }
     } finally {
       setLoading(false);
@@ -112,7 +114,7 @@ export function CleaningScreen(props: Props) {
   async function markSchedulesDone(ids: string[], message: string) {
     const uniqueIds = Array.from(new Set(ids)).filter((id) => selectedIds[id]);
     if (!uniqueIds.length) {
-      setInfoMessage("Nessuna pulizia selezionata.");
+      setInfoMessage(t("cleaning.select_none"));
       return;
     }
     setSaving(true);
@@ -121,7 +123,7 @@ export function CleaningScreen(props: Props) {
       setInfoMessage(message);
       await loadData();
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore convalida pulizie.");
+      props.setError(e instanceof Error ? e.message : t("cleaning.validation_error"));
     } finally {
       setSaving(false);
     }
@@ -130,14 +132,14 @@ export function CleaningScreen(props: Props) {
   return (
     <ScrollView contentContainerStyle={appStyles.container}>
       <View style={appStyles.card}>
-        <Text style={appStyles.sectionTitle}>Pulizie</Text>
-        <Text style={appStyles.muted}>Convalida le pulizie pianificate per oggi o scadute, per sezione o per intero sito.</Text>
+        <Text style={appStyles.sectionTitle}>{t("cleaning.title")}</Text>
+        <Text style={appStyles.muted}>{t("cleaning.subtitle")}</Text>
         <View style={appStyles.tabsRow}>
           <Pressable
             style={({ pressed }) => [appStyles.tabButton, selectedSector === "all" ? appStyles.tabButtonActive : undefined, pressed ? appStyles.tabButtonPressed : undefined]}
             onPress={() => setSelectedSector("all")}
           >
-            <Text style={[appStyles.tabText, selectedSector === "all" ? appStyles.tabTextActive : undefined]}>Tutto il sito</Text>
+            <Text style={[appStyles.tabText, selectedSector === "all" ? appStyles.tabTextActive : undefined]}>{t("cleaning.site")}</Text>
           </Pressable>
           {sectorOptions.map((sector) => (
             <Pressable
@@ -152,27 +154,27 @@ export function CleaningScreen(props: Props) {
         <Pressable
           style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined, saving ? { opacity: 0.6 } : undefined]}
           disabled={saving}
-          onPress={() => void markSchedulesDone(filteredRows.map((row) => row.id), "Pulizie confermate.")}
+          onPress={() => void markSchedulesDone(filteredRows.map((row) => row.id), t("cleaning.validated"))}
         >
-          <Text style={appStyles.buttonText}>{saving ? "Convalida in corso..." : "Convalida selezione"}</Text>
+          <Text style={appStyles.buttonText}>{saving ? t("cleaning.validating") : t("cleaning.validate_selected")}</Text>
         </Pressable>
         <Pressable
           style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
           onPress={() => void loadData()}
         >
-          <Text style={appStyles.buttonSecondaryText}>{loading ? "Aggiornamento..." : "Aggiorna elenco"}</Text>
+          <Text style={appStyles.buttonSecondaryText}>{loading ? t("cleaning.refreshing") : t("cleaning.refresh")}</Text>
         </Pressable>
         {infoMessage ? <Text style={appStyles.muted}>{infoMessage}</Text> : null}
       </View>
 
       {groupedRows.length === 0 ? (
         <View style={appStyles.card}>
-          <Text style={appStyles.listEmpty}>Nessuna pulizia in scadenza per il filtro selezionato.</Text>
+          <Text style={appStyles.listEmpty}>{t("cleaning.none_due")}</Text>
         </View>
       ) : null}
 
       {groupedRows.map((rows) => {
-        const groupLabel = rows[0]?.sector_label || rows[0]?.area || "Intero sito";
+        const groupLabel = rows[0]?.sector_label || rows[0]?.area || t("cleaning.site_label");
         const groupIds = rows.map((row) => row.id);
         return (
           <View key={groupIds.join("-")} style={appStyles.card}>
@@ -180,9 +182,9 @@ export function CleaningScreen(props: Props) {
             <Pressable
               style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined, saving ? { opacity: 0.6 } : undefined]}
               disabled={saving}
-              onPress={() => void markSchedulesDone(groupIds, `Pulizie confermate: ${groupLabel}`)}
+              onPress={() => void markSchedulesDone(groupIds, t("cleaning.validated_group", { value: groupLabel }))}
             >
-              <Text style={appStyles.buttonSecondaryText}>Convalida sezione</Text>
+              <Text style={appStyles.buttonSecondaryText}>{t("cleaning.validate_sector")}</Text>
             </Pressable>
             {rows.map((row) => {
               const selected = !!selectedIds[row.id];
@@ -190,11 +192,11 @@ export function CleaningScreen(props: Props) {
                 <Pressable key={row.id} style={appStyles.listItem} onPress={() => toggleSelected(row.id)}>
                   <View style={{ flex: 1, gap: 4 }}>
                     <Text style={appStyles.listTitle}>{row.title}</Text>
-                    <Text style={appStyles.listMeta}>{row.area || row.cold_point_label || row.sector_label || "Pulizia sito"}</Text>
-                    <Text style={appStyles.listMeta}>Prevista: {formatDateTime(row.starts_at)}</Text>
+                    <Text style={appStyles.listMeta}>{row.area || row.cold_point_label || row.sector_label || t("cleaning.site_label")}</Text>
+                    <Text style={appStyles.listMeta}>{t("cleaning.planned", { value: formatDateTime(row.starts_at) })}</Text>
                   </View>
                   <View style={[appStyles.statusPill, selected ? appStyles.statusResolved : appStyles.statusPending]}>
-                    <Text style={selected ? appStyles.statusResolvedText : appStyles.statusPendingText}>{selected ? "Selezionata" : "Esclusa"}</Text>
+                    <Text style={selected ? appStyles.statusResolvedText : appStyles.statusPendingText}>{selected ? t("cleaning.selected") : t("cleaning.excluded")}</Text>
                   </View>
                 </Pressable>
               );
@@ -204,17 +206,17 @@ export function CleaningScreen(props: Props) {
       })}
 
       <View style={appStyles.card}>
-        <Text style={appStyles.sectionTitle}>Registro convalide</Text>
-        <Text style={appStyles.muted}>Ultime pulizie confermate per il sito o la sezione selezionata.</Text>
+        <Text style={appStyles.sectionTitle}>{t("cleaning.register")}</Text>
+        <Text style={appStyles.muted}>{t("cleaning.register_subtitle")}</Text>
         {completedRows.length === 0 ? (
-          <Text style={appStyles.listEmpty}>Nessuna convalida registrata per questo filtro.</Text>
+          <Text style={appStyles.listEmpty}>{t("cleaning.register_empty")}</Text>
         ) : (
           completedRows.map((row) => (
             <View key={`done-${row.id}`} style={appStyles.listItem}>
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={appStyles.listTitle}>{row.title}</Text>
-                <Text style={appStyles.listMeta}>{row.area || row.cold_point_label || row.sector_label || "Pulizia sito"}</Text>
-                <Text style={appStyles.listMeta}>Convalidata: {formatDateTime(row.completed_at)}</Text>
+                <Text style={appStyles.listMeta}>{row.area || row.cold_point_label || row.sector_label || t("cleaning.site_label")}</Text>
+                <Text style={appStyles.listMeta}>{t("cleaning.validated_at", { value: formatDateTime(row.completed_at) })}</Text>
               </View>
               <View style={[appStyles.statusPill, appStyles.statusResolved]}>
                 <Text style={appStyles.statusResolvedText}>Done</Text>

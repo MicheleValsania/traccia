@@ -3,6 +3,7 @@ import React from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { captureLabelPhoto } from "../api";
+import { useI18n } from "../i18n";
 import { appStyles } from "../styles";
 
 type Props = {
@@ -20,6 +21,7 @@ type UploadAsset = {
 };
 
 export function CaptureScreen(props: Props) {
+  const { t } = useI18n();
   const [sessionShots, setSessionShots] = React.useState(0);
   const [uploadedShots, setUploadedShots] = React.useState(0);
   const [failedShots, setFailedShots] = React.useState(0);
@@ -39,7 +41,7 @@ export function CaptureScreen(props: Props) {
   async function submitPickedAsset(asset: UploadAsset) {
     const fileBase64 = asset.base64;
     if (!fileBase64) {
-      props.setError("Immagine non valida: base64 assente.");
+      props.setError(t("capture.invalid_image"));
       return;
     }
     const body = await captureLabelPhoto({
@@ -52,7 +54,7 @@ export function CaptureScreen(props: Props) {
     const provider = String(body.asset?.drive_provider || "");
     const fallbackReason = String(body.asset?.drive_fallback_reason || "");
     if (provider.toLowerCase() === "stub" || fallbackReason) {
-      throw new Error(`Upload Drive non riuscito (${fallbackReason || "fallback_stub"})`);
+      throw new Error(t("capture.drive_error", { value: fallbackReason || "fallback_stub" }));
     }
   }
 
@@ -65,7 +67,7 @@ export function CaptureScreen(props: Props) {
           setUploadedShots((prev) => prev + 1);
         } catch (e) {
           setFailedShots((prev) => prev + 1);
-          props.setError(e instanceof Error ? e.message : "Upload Drive fallito.");
+          props.setError(e instanceof Error ? e.message : t("capture.upload_failed"));
         }
       })
       .finally(() => {
@@ -78,7 +80,7 @@ export function CaptureScreen(props: Props) {
       return;
     }
     if (!cameraPermission?.granted) {
-      props.setError("Permesso camera non disponibile.");
+      props.setError(t("capture.camera_permission_missing"));
       return;
     }
 
@@ -90,7 +92,7 @@ export function CaptureScreen(props: Props) {
         base64: true,
       });
       if (!photo?.base64) {
-        props.setError("Impossibile leggere la foto (base64 assente).");
+        props.setError(t("capture.base64_missing"));
         return;
       }
       setSessionShots((prev) => prev + 1);
@@ -101,7 +103,7 @@ export function CaptureScreen(props: Props) {
         mimeType: "image/jpeg",
       });
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore scatto.");
+      props.setError(e instanceof Error ? e.message : t("capture.shot_error"));
     } finally {
       props.setLoading(false);
       setTakingShot(false);
@@ -114,7 +116,7 @@ export function CaptureScreen(props: Props) {
     try {
       await uploadQueueRef.current;
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore sincronizzazione.");
+      props.setError(e instanceof Error ? e.message : t("capture.sync_error"));
     } finally {
       props.setLoading(false);
     }
@@ -123,17 +125,13 @@ export function CaptureScreen(props: Props) {
   return (
     <>
       <View style={appStyles.card}>
-        <Text style={appStyles.sectionTitle}>Camera continua</Text>
-        <Text style={appStyles.tokenPreview}>
-          Le foto vengono inviate a Drive e poi trattate centralmente in CookOps.
-        </Text>
+        <Text style={appStyles.sectionTitle}>{t("capture.title")}</Text>
+        <Text style={appStyles.tokenPreview}>{t("capture.subtitle")}</Text>
 
         {cameraPermission?.granted ? (
           <>
             <CameraView ref={cameraRef} style={appStyles.cameraPreview} facing="back" />
-            <Text style={appStyles.tokenPreview}>
-              Scatti: {sessionShots} | Caricati: {uploadedShots} | In coda: {pendingUploads} | Errori: {failedShots}
-            </Text>
+            <Text style={appStyles.tokenPreview}>{t("capture.shots", { shots: sessionShots, uploaded: uploadedShots, pending: pendingUploads, failed: failedShots })}</Text>
             <View style={appStyles.tabsRow}>
               <Pressable
                 style={({ pressed }) => [
@@ -144,7 +142,7 @@ export function CaptureScreen(props: Props) {
                 onPress={takeShot}
                 disabled={takingShot || props.loading || !props.token}
               >
-                <Text style={appStyles.buttonText}>{takingShot ? "Scatto..." : "Scatta"}</Text>
+                <Text style={appStyles.buttonText}>{takingShot ? t("capture.taking") : t("capture.take")}</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
@@ -155,7 +153,7 @@ export function CaptureScreen(props: Props) {
                 onPress={syncQueue}
                 disabled={takingShot || props.loading || !props.token}
               >
-                <Text style={appStyles.buttonSecondaryText}>{props.loading ? "Sincronizzo..." : "Sincronizza"}</Text>
+                <Text style={appStyles.buttonSecondaryText}>{props.loading ? t("capture.syncing") : t("capture.sync")}</Text>
               </Pressable>
             </View>
           </>
@@ -164,7 +162,7 @@ export function CaptureScreen(props: Props) {
             style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]}
             onPress={() => void requestCameraPermission()}
           >
-            <Text style={appStyles.buttonText}>Abilita camera</Text>
+            <Text style={appStyles.buttonText}>{t("capture.enable_camera")}</Text>
           </Pressable>
         )}
       </View>

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 
 import { fetchActiveLotsSearch, fetchLabelProfiles, requestLabelPrint } from "../api";
+import { useI18n } from "../i18n";
 import { ActiveLotSearchItem, LabelProfile } from "../types";
 import { appStyles } from "../styles";
 
@@ -11,14 +12,13 @@ type Props = {
   setError: (value: string) => void;
 };
 
-const UNCATEGORIZED = "Senza categoria";
-
-function normalizeCategoryName(value: string | null | undefined) {
+function normalizeCategoryName(value: string | null | undefined, fallback: string) {
   const cleanValue = (value || "").trim();
-  return cleanValue || UNCATEGORIZED;
+  return cleanValue || fallback;
 }
 
 export function LabelsScreen(props: Props) {
+  const { t } = useI18n();
   const [profiles, setProfiles] = useState<LabelProfile[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string>("");
@@ -34,7 +34,7 @@ export function LabelsScreen(props: Props) {
   const groupedProfiles = useMemo(() => {
     const buckets: Record<string, LabelProfile[]> = {};
     profiles.forEach((profile) => {
-      const bucketName = normalizeCategoryName(profile.category);
+      const bucketName = normalizeCategoryName(profile.category, t("labels.uncategorized"));
       if (!buckets[bucketName]) buckets[bucketName] = [];
       buckets[bucketName].push(profile);
     });
@@ -69,9 +69,9 @@ export function LabelsScreen(props: Props) {
           : rows[0]?.id || "";
       setSelectedProfileId(nextSelectedId);
       const nextProfile = rows.find((row) => row.id === nextSelectedId) || rows[0] || null;
-      setSelectedCategory(nextProfile ? normalizeCategoryName(nextProfile.category) : "");
+      setSelectedCategory(nextProfile ? normalizeCategoryName(nextProfile.category, t("labels.uncategorized")) : "");
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Caricamento profili etichetta fallito.");
+      props.setError(e instanceof Error ? e.message : t("labels.load_error"));
     } finally {
       setLoadingProfiles(false);
     }
@@ -97,7 +97,7 @@ export function LabelsScreen(props: Props) {
         setSelectedLotId("");
       }
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Ricerca lotti fallita.");
+      props.setError(e instanceof Error ? e.message : t("labels.search_error"));
     } finally {
       setSearchingLots(false);
     }
@@ -105,16 +105,16 @@ export function LabelsScreen(props: Props) {
 
   async function printLabels() {
     if (!selectedProfile) {
-      props.setError("Seleziona un profilo CookOps.");
+      props.setError(t("labels.select_profile"));
       return;
     }
     const copiesNum = Number.parseInt(copies, 10);
     if (!Number.isFinite(copiesNum) || copiesNum < 1) {
-      props.setError("Numero etichette non valido.");
+      props.setError(t("labels.invalid_copies"));
       return;
     }
     if (useOriginLot && !selectedLotId) {
-      props.setError("Se hai scelto lotto origine, seleziona un lotto.");
+      props.setError(t("labels.select_origin_lot"));
       return;
     }
     props.setError("");
@@ -127,27 +127,27 @@ export function LabelsScreen(props: Props) {
         lotId: useOriginLot ? selectedLotId : undefined,
         copies: copiesNum,
       });
-      setPrintResult(`Stampa pronta: ${job.copies} etichette | Produzione ${job.production_date} | DLC ${job.dlc_date}`);
+      setPrintResult(t("labels.print_ready", { copies: job.copies, production: job.production_date, dlc: job.dlc_date }));
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Richiesta stampa fallita.");
+      props.setError(e instanceof Error ? e.message : t("labels.print_error"));
     }
   }
 
   return (
     <View style={appStyles.card}>
-      <Text style={appStyles.sectionTitle}>Etichette</Text>
-      <Text style={appStyles.tokenPreview}>Site: {props.siteCode}</Text>
-      <Text style={appStyles.tokenPreview}>I profili etichetta sono gestiti in CookOps. In Traccia puoi solo selezionare il profilo e stampare.</Text>
+      <Text style={appStyles.sectionTitle}>{t("labels.title")}</Text>
+      <Text style={appStyles.tokenPreview}>{t("labels.site", { value: props.siteCode })}</Text>
+      <Text style={appStyles.tokenPreview}>{t("labels.subtitle")}</Text>
 
       <Pressable
         style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
         onPress={() => void loadProfiles(selectedProfileId || undefined)}
         disabled={loadingProfiles}
       >
-        <Text style={appStyles.buttonSecondaryText}>{loadingProfiles ? "Aggiornamento..." : "Aggiorna profili CookOps"}</Text>
+        <Text style={appStyles.buttonSecondaryText}>{loadingProfiles ? t("labels.refreshing_profiles") : t("labels.refresh_profiles")}</Text>
       </Pressable>
 
-      <Text style={appStyles.label}>Categorie</Text>
+      <Text style={appStyles.label}>{t("labels.categories")}</Text>
       <View style={appStyles.tabsRow}>
         {categoryOptions.map((categoryName) => (
           <Pressable
@@ -168,8 +168,8 @@ export function LabelsScreen(props: Props) {
         ))}
       </View>
 
-      <Text style={appStyles.label}>Profili disponibili</Text>
-      {loadingProfiles ? <Text style={appStyles.tokenPreview}>Caricamento profili...</Text> : null}
+      <Text style={appStyles.label}>{t("labels.available_profiles")}</Text>
+      {loadingProfiles ? <Text style={appStyles.tokenPreview}>{t("labels.loading_profiles")}</Text> : null}
       {sessionProfiles.length ? (
         sessionProfiles.map((profile) => (
           <Pressable
@@ -188,10 +188,10 @@ export function LabelsScreen(props: Props) {
           </Pressable>
         ))
       ) : (
-        <Text style={appStyles.tokenPreview}>Nessun profilo disponibile per questa categoria.</Text>
+        <Text style={appStyles.tokenPreview}>{t("labels.no_profiles_category")}</Text>
       )}
 
-      <Text style={appStyles.label}>Lotto d'origine</Text>
+      <Text style={appStyles.label}>{t("labels.origin_lot")}</Text>
       <View style={appStyles.tabsRow}>
         <Pressable
           style={({ pressed }) => [
@@ -201,7 +201,7 @@ export function LabelsScreen(props: Props) {
           ]}
           onPress={() => setUseOriginLot(true)}
         >
-          <Text style={[appStyles.tabText, useOriginLot ? appStyles.tabTextActive : undefined]}>Seleziona lotto</Text>
+          <Text style={[appStyles.tabText, useOriginLot ? appStyles.tabTextActive : undefined]}>{t("labels.select_lot")}</Text>
         </Pressable>
         <Pressable
           style={({ pressed }) => [
@@ -214,19 +214,19 @@ export function LabelsScreen(props: Props) {
             setSelectedLotId("");
           }}
         >
-          <Text style={[appStyles.tabText, !useOriginLot ? appStyles.tabTextActive : undefined]}>Senza lotto</Text>
+          <Text style={[appStyles.tabText, !useOriginLot ? appStyles.tabTextActive : undefined]}>{t("labels.without_lot")}</Text>
         </Pressable>
       </View>
 
       {useOriginLot ? (
         <>
-          <TextInput style={appStyles.input} value={lotQuery} onChangeText={setLotQuery} placeholder="Cerca lotto (prodotto, fornitore, codice)" />
+          <TextInput style={appStyles.input} value={lotQuery} onChangeText={setLotQuery} placeholder={t("labels.search_lot_placeholder")} />
           <Pressable
             style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
             onPress={() => void searchLots()}
             disabled={searchingLots}
           >
-            <Text style={appStyles.buttonSecondaryText}>{searchingLots ? "Ricerca..." : "Cerca lotti"}</Text>
+            <Text style={appStyles.buttonSecondaryText}>{searchingLots ? t("labels.searching") : t("labels.search_lots")}</Text>
           </Pressable>
           {lotResults.map((lot) => (
             <Pressable
@@ -247,10 +247,10 @@ export function LabelsScreen(props: Props) {
         </>
       ) : null}
 
-      <Text style={appStyles.label}>Numero etichette</Text>
+      <Text style={appStyles.label}>{t("labels.copies")}</Text>
       <TextInput style={appStyles.input} value={copies} onChangeText={setCopies} keyboardType="number-pad" placeholder="1" />
       <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={printLabels} disabled={!selectedProfile}>
-        <Text style={appStyles.buttonText}>Stampa</Text>
+        <Text style={appStyles.buttonText}>{t("labels.print")}</Text>
       </Pressable>
       {printResult ? <Text style={appStyles.success}>{printResult}</Text> : null}
     </View>

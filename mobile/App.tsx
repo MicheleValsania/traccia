@@ -6,6 +6,7 @@ import { SvgXml } from "react-native-svg";
 import { fetchMe, loginToken } from "./src/api";
 import { chefsideLogoXml } from "./src/assets/chefsideLogoXml";
 import { AuthCard } from "./src/components/AuthCard";
+import { LANGUAGE_OPTIONS, I18nProvider, useI18n } from "./src/i18n";
 import { CaptureScreen } from "./src/screens/CaptureScreen";
 import { CleaningScreen } from "./src/screens/CleaningScreen";
 import { LabelsScreen } from "./src/screens/LabelsScreen";
@@ -14,16 +15,17 @@ import { TemperatureScreen } from "./src/screens/TemperatureScreen";
 import { appStyles } from "./src/styles";
 import { MeMembership, TabKey } from "./src/types";
 
-const TABS: Array<{ key: TabKey; icon: string; label: string }> = [
-  { key: "camera", icon: "\u{1F4F7}", label: "Camera" },
-  { key: "dashboard", icon: "\u{1F37D}\uFE0F", label: "Dashboard" },
-  { key: "temperatures", icon: "\u{1F321}\uFE0F", label: "Temperature" },
-  { key: "cleaning", icon: "\u{1F9FD}", label: "Pulizie" },
-  { key: "labels", icon: "\u{1F3F7}\uFE0F", label: "Etichette" },
-  { key: "settings", icon: "\u2699\uFE0F", label: "Parametri" },
-];
+function AppShell() {
+  const { language, setLanguage, t } = useI18n();
+  const tabs: Array<{ key: TabKey; icon: string; label: string }> = [
+    { key: "camera", icon: "\u{1F4F7}", label: t("tab.camera") },
+    { key: "dashboard", icon: "\u{1F37D}\uFE0F", label: t("tab.dashboard") },
+    { key: "temperatures", icon: "\u{1F321}\uFE0F", label: t("tab.temperatures") },
+    { key: "cleaning", icon: "\u{1F9FD}", label: t("tab.cleaning") },
+    { key: "labels", icon: "\u{1F3F7}\uFE0F", label: t("tab.labels") },
+    { key: "settings", icon: "\u2699\uFE0F", label: t("tab.settings") },
+  ];
 
-export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>("camera");
   const [navHint, setNavHint] = useState("");
   const [siteCode, setSiteCode] = useState("MAIN");
@@ -66,7 +68,7 @@ export default function App() {
         // Keep current site code if profile loading fails.
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Errore login.");
+      setError(e instanceof Error ? e.message : t("app.login_error"));
     }
   }
 
@@ -92,8 +94,23 @@ export default function App() {
             <View style={appStyles.authLogoCard}>
               <SvgXml xml={chefsideLogoXml} width={220} height={66} />
             </View>
-            <Text style={appStyles.authTitle}>Traccia HACCP</Text>
-            <Text style={appStyles.authSubtitle}>Camera continua, temperature, etichette operative e alert.</Text>
+            <View style={appStyles.tabsRow}>
+              {LANGUAGE_OPTIONS.map((option) => (
+                <Pressable
+                  key={option}
+                  style={({ pressed }) => [
+                    appStyles.tabButton,
+                    option === language ? appStyles.tabButtonActive : undefined,
+                    pressed ? appStyles.tabButtonPressed : undefined,
+                  ]}
+                  onPress={() => setLanguage(option)}
+                >
+                  <Text style={[appStyles.tabText, option === language ? appStyles.tabTextActive : undefined]}>{t(`lang.${option}`)}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={appStyles.authTitle}>{t("app.title")}</Text>
+            <Text style={appStyles.authSubtitle}>{t("app.subtitle")}</Text>
             <AuthCard
               username={username}
               setUsername={setUsername}
@@ -105,35 +122,18 @@ export default function App() {
           </View>
         ) : null}
 
-        {token && activeTab === "camera" ? (
-          <CaptureScreen
-            token={token}
-            siteCode={siteCode}
-            loading={loading}
-            setLoading={setLoading}
-            setError={setError}
-          />
-        ) : null}
+        {token && activeTab === "camera" ? <CaptureScreen token={token} siteCode={siteCode} loading={loading} setLoading={setLoading} setError={setError} /> : null}
+        {token && activeTab === "dashboard" ? <ReportsScreen siteCode={siteCode} token={token} /> : null}
+        {token && activeTab === "temperatures" ? <TemperatureScreen token={token} siteCode={siteCode} setError={setError} /> : null}
+        {token && activeTab === "cleaning" ? <CleaningScreen token={token} siteCode={siteCode} setError={setError} /> : null}
+        {token && activeTab === "labels" ? <LabelsScreen token={token} siteCode={siteCode} setError={setError} /> : null}
 
-        {token && activeTab === "dashboard" ? (
-          <ReportsScreen siteCode={siteCode} token={token} />
-        ) : null}
-
-        {token && activeTab === "temperatures" ? (
-          <TemperatureScreen token={token} siteCode={siteCode} setError={setError} />
-        ) : null}
-        {token && activeTab === "cleaning" ? (
-          <CleaningScreen token={token} siteCode={siteCode} setError={setError} />
-        ) : null}
-        {token && activeTab === "labels" ? (
-          <LabelsScreen token={token} siteCode={siteCode} setError={setError} />
-        ) : null}
         {token && activeTab === "settings" ? (
           <View style={appStyles.card}>
-            <Text style={appStyles.sectionTitle}>Parametri</Text>
-            <Text style={appStyles.tokenPreview}>Utente: {username}</Text>
-            <Text style={appStyles.tokenPreview}>Site attivo: {siteCode}</Text>
-            <Text style={appStyles.tokenPreview}>Siti disponibili</Text>
+            <Text style={appStyles.sectionTitle}>{t("settings.title")}</Text>
+            <Text style={appStyles.tokenPreview}>{t("settings.user", { value: username })}</Text>
+            <Text style={appStyles.tokenPreview}>{t("settings.site", { value: siteCode })}</Text>
+            <Text style={appStyles.tokenPreview}>{t("settings.available_sites")}</Text>
             {memberships.length ? (
               <View style={appStyles.tabsRow}>
                 {memberships.map((membership) => (
@@ -146,15 +146,31 @@ export default function App() {
                     ]}
                     onPress={() => setSiteCode(membership.site_code)}
                   >
-                    <Text style={[appStyles.tabText, membership.site_code === siteCode ? appStyles.tabTextActive : undefined]}>
-                      {membership.site_name}
-                    </Text>
+                    <Text style={[appStyles.tabText, membership.site_code === siteCode ? appStyles.tabTextActive : undefined]}>{membership.site_name}</Text>
                   </Pressable>
                 ))}
               </View>
             ) : (
-              <Text style={appStyles.tokenPreview}>Nessun site disponibile nel profilo.</Text>
+              <Text style={appStyles.tokenPreview}>{t("settings.no_sites")}</Text>
             )}
+
+            <Text style={appStyles.label}>{t("settings.language")}</Text>
+            <View style={appStyles.tabsRow}>
+              {LANGUAGE_OPTIONS.map((option) => (
+                <Pressable
+                  key={`settings-${option}`}
+                  style={({ pressed }) => [
+                    appStyles.tabButton,
+                    option === language ? appStyles.tabButtonActive : undefined,
+                    pressed ? appStyles.tabButtonPressed : undefined,
+                  ]}
+                  onPress={() => setLanguage(option)}
+                >
+                  <Text style={[appStyles.tabText, option === language ? appStyles.tabTextActive : undefined]}>{t(`lang.${option}`)}</Text>
+                </Pressable>
+              ))}
+            </View>
+
             <Pressable
               style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
               onPress={async () => {
@@ -162,24 +178,25 @@ export default function App() {
                   setError("");
                   await refreshProfile();
                 } catch (e) {
-                  setError(e instanceof Error ? e.message : "Errore caricamento profilo.");
+                  setError(e instanceof Error ? e.message : t("settings.reload_error"));
                 }
               }}
             >
-              <Text style={appStyles.buttonSecondaryText}>Ricarica siti</Text>
+              <Text style={appStyles.buttonSecondaryText}>{t("settings.reload_sites")}</Text>
             </Pressable>
             <Pressable style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]} onPress={logout}>
-              <Text style={appStyles.buttonSecondaryText}>Logout</Text>
+              <Text style={appStyles.buttonSecondaryText}>{t("settings.logout")}</Text>
             </Pressable>
           </View>
         ) : null}
         {error ? <Text style={appStyles.error}>{error}</Text> : null}
       </ScrollView>
+
       {token ? (
         <View style={appStyles.bottomNavWrap}>
           {navHint ? <Text style={appStyles.bottomNavHint}>{navHint}</Text> : null}
           <View style={appStyles.bottomNav}>
-            {TABS.map((tab) => (
+            {tabs.map((tab) => (
               <Pressable
                 key={tab.key}
                 style={({ pressed }) => [
@@ -201,5 +218,13 @@ export default function App() {
         </View>
       ) : null}
     </SafeAreaView>
+  );
+}
+
+export default function App() {
+  return (
+    <I18nProvider>
+      <AppShell />
+    </I18nProvider>
   );
 }

@@ -10,6 +10,7 @@ import {
   fetchHaccpSectors,
   fetchTemperatureReadings,
 } from "../api";
+import { useI18n } from "../i18n";
 import { appStyles } from "../styles";
 import { ColdPoint, ColdSector, TemperatureCaptureResponse, TemperaturePreviewResponse, TemperatureReading } from "../types";
 
@@ -20,6 +21,7 @@ type Props = {
 };
 
 export function TemperatureScreen(props: Props) {
+  const { t } = useI18n();
   const [loading, setLoading] = React.useState(false);
   const [mode, setMode] = React.useState<"single" | "sequence" | "manual">("single");
 
@@ -61,7 +63,7 @@ export function TemperatureScreen(props: Props) {
 
   async function loadConfiguration() {
     if (!props.token) {
-      props.setError("Effettua login prima di usare Temperature.");
+      props.setError(t("temperature.login_required"));
       return;
     }
     setLoading(true);
@@ -75,14 +77,14 @@ export function TemperatureScreen(props: Props) {
       if (!nextSectorId) {
         setPoints([]);
         setSelectedPointId("");
-        setInfoMessage(`Nessun settore su site ${props.siteCode}.`);
+        setInfoMessage(t("temperature.no_sector", { value: props.siteCode }));
         return;
       }
       await loadPoints(nextSectorId);
-      setInfoMessage(`Configurazione caricata (${sectorRows.length} settori).`);
+      setInfoMessage(t("temperature.config_loaded", { count: sectorRows.length }));
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore caricamento configurazione.");
-      setInfoMessage("Errore caricamento configurazione.");
+      props.setError(e instanceof Error ? e.message : t("temperature.config_error"));
+      setInfoMessage(t("temperature.config_error"));
     } finally {
       setLoading(false);
     }
@@ -106,13 +108,13 @@ export function TemperatureScreen(props: Props) {
       });
       setReadings(rows);
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore caricamento storico.");
+      props.setError(e instanceof Error ? e.message : t("temperature.history_error"));
     }
   }
 
   async function submitCapture(asset: { base64?: string | null; fileName?: string | null; mimeType?: string | null }, point: ColdPoint) {
     if (!asset.base64) {
-      props.setError("Immagine non valida: base64 assente.");
+      props.setError(t("temperature.invalid_image"));
       return;
     }
     const preview = await captureTemperaturePreview({
@@ -131,13 +133,13 @@ export function TemperatureScreen(props: Props) {
 
   async function confirmPreview() {
     if (!pendingPreview) {
-      props.setError("Nessuna anteprima OCR da confermare.");
+      props.setError(t("temperature.no_preview"));
       return;
     }
     const normalized = confirmTempInput.trim().replace(",", ".");
     const parsed = Number(normalized);
     if (!normalized || Number.isNaN(parsed)) {
-      props.setError("Inserisci la temperatura confermata.");
+      props.setError(t("temperature.enter_confirmed"));
       return;
     }
     try {
@@ -170,13 +172,14 @@ export function TemperatureScreen(props: Props) {
         const isLastStep = nextIndex >= sequencePoints.length;
         if (isLastStep) {
           setInfoMessage("Sequenza completata.");
+          setInfoMessage(t("temperature.sequence_done"));
         } else {
           const nextPoint = sequencePoints[nextIndex];
           setSequenceStepIndex(nextIndex);
           setInfoMessage(
             nextPoint
-              ? `Rilevazione salvata. Prossimo: ${nextPoint.sort_order}. ${nextPoint.name}`
-              : "Rilevazione salvata. Procedi con il prossimo punto.",
+              ? t("temperature.next_point", { value: `${nextPoint.sort_order}. ${nextPoint.name}` })
+              : t("temperature.next_generic"),
           );
         }
       }
@@ -186,7 +189,7 @@ export function TemperatureScreen(props: Props) {
         // Non bloccare la sequenza se il refresh storico fallisce.
       }
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore conferma operatore.");
+      props.setError(e instanceof Error ? e.message : t("temperature.confirm_error"));
     }
   }
 
@@ -199,19 +202,19 @@ export function TemperatureScreen(props: Props) {
 
   async function saveManualReading(rawTemperature: string, outOfRange: boolean) {
     if (!selectedPoint) {
-      props.setError("Seleziona un punto freddo.");
+      props.setError(t("temperature.select_point"));
       return;
     }
     const normalized = rawTemperature.trim().replace(",", ".");
     const parsed = Number(normalized);
     if (!normalized || Number.isNaN(parsed)) {
-      props.setError("Inserisci una temperatura valida.");
+      props.setError(t("temperature.enter_valid"));
       return;
     }
     const reason = manualReasonInput.trim();
     const action = manualActionInput.trim();
     if (outOfRange && (!reason || !action)) {
-      props.setError("Per fuori range inserisci motivo dello scarto e intervento.");
+      props.setError(t("temperature.manual_reason_required"));
       return;
     }
 
@@ -233,10 +236,10 @@ export function TemperatureScreen(props: Props) {
       setManualOutOfRangeTempInput("");
       setManualReasonInput("");
       setManualActionInput("");
-      setInfoMessage(outOfRange ? "Temperatura fuori range registrata." : "Temperatura manuale registrata.");
+      setInfoMessage(outOfRange ? t("temperature.manual_out_saved") : t("temperature.manual_saved"));
       await refreshReadings();
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore salvataggio manuale.");
+      props.setError(e instanceof Error ? e.message : t("temperature.manual_save_error"));
     } finally {
       setSavingManual(false);
     }
@@ -258,7 +261,7 @@ export function TemperatureScreen(props: Props) {
       if (shot.canceled || !shot.assets[0]) return;
       await submitCapture(shot.assets[0], selectedPoint);
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore scatto singolo.");
+      props.setError(e instanceof Error ? e.message : t("temperature.single_error"));
     } finally {
       setLoading(false);
     }
@@ -266,13 +269,13 @@ export function TemperatureScreen(props: Props) {
 
   async function openSequenceCamera() {
     if (!sequencePoints.length) {
-      props.setError("Nessun punto freddo disponibile nel settore. Configurazione da CookOps.");
+      props.setError(t("temperature.no_points_sector"));
       return;
     }
     if (!cameraPermission?.granted) {
       const permissionResult = await requestCameraPermission();
       if (!permissionResult.granted) {
-        props.setError("Permesso camera negato.");
+        props.setError(t("temperature.camera_denied"));
         return;
       }
     }
@@ -286,16 +289,16 @@ export function TemperatureScreen(props: Props) {
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.6, base64: true });
       if (!photo?.base64) {
-        props.setError("Impossibile leggere la foto.");
+        props.setError(t("temperature.photo_read_error"));
         return;
       }
       await submitCapture(
         { base64: photo.base64, fileName: `temperature_${Date.now()}.jpg`, mimeType: "image/jpeg" },
         currentSequencePoint,
       );
-      setInfoMessage("Anteprima OCR pronta: conferma operatore richiesta.");
+      setInfoMessage(t("temperature.preview_ready"));
     } catch (e) {
-      props.setError(e instanceof Error ? e.message : "Errore scatto sequenza.");
+      props.setError(e instanceof Error ? e.message : t("temperature.sequence_error"));
     } finally {
       setTakingShot(false);
     }
@@ -304,14 +307,14 @@ export function TemperatureScreen(props: Props) {
   return (
     <>
       <View style={appStyles.card}>
-        <Text style={appStyles.sectionTitle}>Temperature</Text>
-        <Text style={appStyles.tokenPreview}>Settori e punti freddo sono gestiti in CookOps. In Traccia i capi settore registrano solo le rilevazioni.</Text>
+        <Text style={appStyles.sectionTitle}>{t("temperature.title")}</Text>
+        <Text style={appStyles.tokenPreview}>{t("temperature.subtitle")}</Text>
         {infoMessage ? <Text style={appStyles.infoText}>{infoMessage}</Text> : null}
       </View>
 
       <View style={appStyles.card}>
-            <Text style={appStyles.sectionTitle}>Operativa</Text>
-            <Text style={appStyles.label}>Settore</Text>
+            <Text style={appStyles.sectionTitle}>{t("temperature.operations")}</Text>
+            <Text style={appStyles.label}>{t("temperature.sector")}</Text>
             <View style={appStyles.tabsRow}>
               {sectors.map((sector) => (
                 <Pressable
@@ -331,7 +334,7 @@ export function TemperatureScreen(props: Props) {
               ))}
             </View>
 
-            <Text style={appStyles.label}>Punti freddo</Text>
+            <Text style={appStyles.label}>{t("temperature.points")}</Text>
             <View style={appStyles.tabsRow}>
               {sequencePoints.map((point) => (
                 <Pressable
@@ -350,7 +353,7 @@ export function TemperatureScreen(props: Props) {
               ))}
             </View>
 
-            <Text style={appStyles.label}>Modalita</Text>
+            <Text style={appStyles.label}>{t("temperature.mode")}</Text>
             <View style={appStyles.tabsRow}>
               <Pressable
                 style={({ pressed }) => [
@@ -360,7 +363,7 @@ export function TemperatureScreen(props: Props) {
                 ]}
                 onPress={() => setMode("single")}
               >
-                <Text style={[appStyles.tabText, mode === "single" ? appStyles.tabTextActive : undefined]}>Scatto singolo</Text>
+                <Text style={[appStyles.tabText, mode === "single" ? appStyles.tabTextActive : undefined]}>{t("temperature.mode_single")}</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
@@ -370,7 +373,7 @@ export function TemperatureScreen(props: Props) {
                 ]}
                 onPress={() => setMode("sequence")}
               >
-                <Text style={[appStyles.tabText, mode === "sequence" ? appStyles.tabTextActive : undefined]}>Modalita sequenza</Text>
+                <Text style={[appStyles.tabText, mode === "sequence" ? appStyles.tabTextActive : undefined]}>{t("temperature.mode_sequence")}</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
@@ -380,36 +383,36 @@ export function TemperatureScreen(props: Props) {
                 ]}
                 onPress={() => setMode("manual")}
               >
-                <Text style={[appStyles.tabText, mode === "manual" ? appStyles.tabTextActive : undefined]}>Manuale</Text>
+                <Text style={[appStyles.tabText, mode === "manual" ? appStyles.tabTextActive : undefined]}>{t("temperature.mode_manual")}</Text>
               </Pressable>
             </View>
 
             {mode === "single" ? (
               <>
-                {!selectedPoint ? <Text style={appStyles.warn}>Seleziona prima un punto freddo.</Text> : null}
+                {!selectedPoint ? <Text style={appStyles.warn}>{t("temperature.select_point_first")}</Text> : null}
                 <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={captureSingle} disabled={loading || !!pendingPreview}>
-                  <Text style={appStyles.buttonText}>{loading ? "Elaborazione..." : "Scatta singolo"}</Text>
+                  <Text style={appStyles.buttonText}>{loading ? t("temperature.processing") : t("temperature.single_shot")}</Text>
                 </Pressable>
               </>
             ) : mode === "sequence" ? (
               <>
-                {!sequencePoints.length ? <Text style={appStyles.warn}>Nessun punto freddo configurato in CookOps per questo settore.</Text> : null}
+                {!sequencePoints.length ? <Text style={appStyles.warn}>{t("temperature.no_points_configured")}</Text> : null}
                 <Text style={appStyles.tokenPreview}>
                   {currentSequencePoint
-                    ? `Prossimo: ${currentSequencePoint.sort_order}. ${currentSequencePoint.name}`
-                    : "Sequenza completata o non configurata"}
+                    ? t("temperature.next", { value: `${currentSequencePoint.sort_order}. ${currentSequencePoint.name}` })
+                    : t("temperature.sequence_complete")}
                 </Text>
                 <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={openSequenceCamera} disabled={loading || !!pendingPreview}>
-                  <Text style={appStyles.buttonText}>Apri camera sequenza</Text>
+                  <Text style={appStyles.buttonText}>{t("temperature.open_sequence_camera")}</Text>
                 </Pressable>
               </>
             ) : (
               <>
-                {!selectedPoint ? <Text style={appStyles.warn}>Seleziona prima un punto freddo per inserimento manuale.</Text> : null}
+                {!selectedPoint ? <Text style={appStyles.warn}>{t("temperature.select_point_first")}</Text> : null}
                 <Text style={appStyles.tokenPreview}>
-                  Metodo manuale su: {selectedPoint ? `${selectedPoint.sort_order}. ${selectedPoint.name}` : "nessun punto selezionato"}
+                  {t("temperature.manual_for", { value: selectedPoint ? `${selectedPoint.sort_order}. ${selectedPoint.name}` : t("temperature.manual_none") })}
                 </Text>
-                <Text style={appStyles.label}>Preset {selectedPoint?.device_type === "FREEZER" ? "freezer (-21..-15 C)" : "frigo/cella (0..10 C)"}</Text>
+                <Text style={appStyles.label}>{t("temperature.preset", { value: selectedPoint?.device_type === "FREEZER" ? t("temperature.freezer_range") : t("temperature.fridge_range") })}</Text>
                 <View style={appStyles.tabsRow}>
                   {manualPresetValues(selectedPoint?.device_type).map((value) => (
                     <Pressable
@@ -422,32 +425,32 @@ export function TemperatureScreen(props: Props) {
                     </Pressable>
                   ))}
                 </View>
-                <Text style={appStyles.label}>Fuori range</Text>
+                <Text style={appStyles.label}>{t("temperature.out_of_range")}</Text>
                 <TextInput
                   style={appStyles.input}
                   value={manualOutOfRangeTempInput}
                   onChangeText={setManualOutOfRangeTempInput}
                   keyboardType="decimal-pad"
-                  placeholder="Temperatura fuori range (es: 12 o -25)"
+                  placeholder={t("temperature.out_placeholder")}
                 />
                 <TextInput
                   style={appStyles.input}
                   value={manualReasonInput}
                   onChangeText={setManualReasonInput}
-                  placeholder="Motivo dello scarto"
+                  placeholder={t("temperature.reason_placeholder")}
                 />
                 <TextInput
                   style={appStyles.input}
                   value={manualActionInput}
                   onChangeText={setManualActionInput}
-                  placeholder="Intervento eseguito"
+                  placeholder={t("temperature.action_placeholder")}
                 />
                 <Pressable
                   style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
                   onPress={() => void saveManualReading(manualOutOfRangeTempInput, true)}
                   disabled={!selectedPoint || savingManual}
                 >
-                  <Text style={appStyles.buttonSecondaryText}>{savingManual ? "Salvataggio..." : "Registra fuori range"}</Text>
+                  <Text style={appStyles.buttonSecondaryText}>{savingManual ? t("temperature.saving") : t("temperature.save_out_of_range")}</Text>
                 </Pressable>
               </>
             )}
@@ -455,18 +458,21 @@ export function TemperatureScreen(props: Props) {
 
       {mode === "sequence" && sequenceCameraOpen ? (
         <View style={appStyles.card}>
-          <Text style={appStyles.sectionTitle}>Camera Sequenza</Text>
+          <Text style={appStyles.sectionTitle}>{t("temperature.sequence_camera")}</Text>
           <CameraView ref={cameraRef} style={appStyles.cameraPreview} facing="back" />
           <Text style={appStyles.tokenPreview}>
-            Step {Math.min(sequenceStepIndex + 1, Math.max(sequencePoints.length, 1))}/{Math.max(sequencePoints.length, 1)} -{" "}
-            {currentSequencePoint?.name || "Completata"}
+            {t("temperature.step", {
+              current: Math.min(sequenceStepIndex + 1, Math.max(sequencePoints.length, 1)),
+              total: Math.max(sequencePoints.length, 1),
+              name: currentSequencePoint?.name || t("temperature.completed"),
+            })}
           </Text>
           <View style={appStyles.tabsRow}>
             <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={takeSequenceShot} disabled={takingShot || !currentSequencePoint || !!pendingPreview}>
-              <Text style={appStyles.buttonText}>{takingShot ? "Scatto..." : "Scatta"}</Text>
+              <Text style={appStyles.buttonText}>{takingShot ? t("temperature.taking") : t("temperature.take")}</Text>
             </Pressable>
             <Pressable style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]} onPress={() => setSequenceCameraOpen(false)}>
-              <Text style={appStyles.buttonSecondaryText}>Fine sessione</Text>
+              <Text style={appStyles.buttonSecondaryText}>{t("temperature.end_session")}</Text>
             </Pressable>
           </View>
         </View>
@@ -474,20 +480,20 @@ export function TemperatureScreen(props: Props) {
 
       {pendingPreview ? (
         <View style={appStyles.card}>
-          <Text style={appStyles.sectionTitle}>Conferma operatore</Text>
-          <Text>Punto freddo: {pendingPreview.preview.device_label || "-"}</Text>
-          <Text>OCR suggerito: {pendingPreview.preview.suggested_temperature_celsius} C</Text>
-          <Text style={appStyles.label}>Temperatura confermata (modificabile)</Text>
+          <Text style={appStyles.sectionTitle}>{t("temperature.operator_confirm")}</Text>
+          <Text>{t("temperature.point", { value: pendingPreview.preview.device_label || "-" })}</Text>
+          <Text>{t("temperature.ocr_suggested", { value: pendingPreview.preview.suggested_temperature_celsius })}</Text>
+          <Text style={appStyles.label}>{t("temperature.confirmed_temp")}</Text>
           <TextInput
             style={appStyles.input}
             value={confirmTempInput}
             onChangeText={setConfirmTempInput}
             keyboardType="decimal-pad"
-            placeholder="es: 4.5"
+            placeholder="e.g. 4.5"
           />
           {pendingPreview.preview.warnings.length ? (
             <View>
-              <Text style={appStyles.warn}>Warnings OCR</Text>
+              <Text style={appStyles.warn}>{t("temperature.ocr_warnings")}</Text>
               {pendingPreview.preview.warnings.map((warn, idx) => (
                 <Text key={`${warn}-${idx}`} style={appStyles.warn}>
                   - {warn}
@@ -497,7 +503,7 @@ export function TemperatureScreen(props: Props) {
           ) : null}
           <View style={appStyles.tabsRow}>
             <Pressable style={({ pressed }) => [appStyles.button, pressed ? appStyles.buttonPressed : undefined]} onPress={confirmPreview}>
-              <Text style={appStyles.buttonText}>Conferma e salva</Text>
+              <Text style={appStyles.buttonText}>{t("temperature.confirm_save")}</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]}
@@ -506,7 +512,7 @@ export function TemperatureScreen(props: Props) {
                 setConfirmTempInput("");
               }}
             >
-              <Text style={appStyles.buttonSecondaryText}>Annulla</Text>
+              <Text style={appStyles.buttonSecondaryText}>{t("temperature.cancel")}</Text>
             </Pressable>
           </View>
         </View>
@@ -514,18 +520,18 @@ export function TemperatureScreen(props: Props) {
 
       {lastCapture ? (
         <View style={appStyles.card}>
-          <Text style={appStyles.sectionTitle}>Ultima rilevazione</Text>
+          <Text style={appStyles.sectionTitle}>{t("temperature.last_reading")}</Text>
           <Text>
             {lastCapture.reading.cold_point_name || lastCapture.reading.device_label || "-"}: {lastCapture.reading.temperature_celsius}{" "}
             {lastCapture.reading.unit}
           </Text>
-          <Text>Foto persistita: {lastCapture.privacy.photo_persisted ? "SI" : "NO"}</Text>
+          <Text>{t("temperature.photo_persisted", { value: lastCapture.privacy.photo_persisted ? t("temperature.yes") : t("temperature.no") })}</Text>
         </View>
       ) : null}
 
       {readings.length > 0 ? (
         <View style={appStyles.card}>
-          <Text style={appStyles.sectionTitle}>Storico</Text>
+          <Text style={appStyles.sectionTitle}>{t("temperature.history")}</Text>
           {readings.map((row) => (
             <Text key={row.id}>
               {row.observed_at.slice(0, 16)} | {row.sector_name || "-"} | {row.cold_point_name || row.device_label || "-"} |{" "}
