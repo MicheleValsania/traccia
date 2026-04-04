@@ -1,4 +1,5 @@
 import React from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type Language = "fr" | "en" | "it";
 
@@ -543,6 +544,7 @@ function interpolate(template: string, vars?: Record<string, string | number | n
 
 const I18nContext = React.createContext<I18nContextValue | null>(null);
 let currentLanguage: Language = "fr";
+const STORAGE_KEY = "traccia.language";
 
 export function translate(key: string, vars?: Record<string, string | number | null | undefined>, language: Language = currentLanguage) {
   const template = TRANSLATIONS[language][key] ?? TRANSLATIONS.fr[key] ?? key;
@@ -551,10 +553,36 @@ export function translate(key: string, vars?: Record<string, string | number | n
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguage] = React.useState<Language>("fr");
+  const [ready, setReady] = React.useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(STORAGE_KEY);
+        if (!active) return;
+        if (saved === "fr" || saved === "en" || saved === "it") {
+          currentLanguage = saved;
+          setLanguage(saved);
+        }
+      } catch {
+        // Keep default language if storage is unavailable.
+      } finally {
+        if (active) setReady(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     currentLanguage = language;
-  }, [language]);
+    if (!ready) return;
+    void AsyncStorage.setItem(STORAGE_KEY, language).catch(() => {
+      // Ignore persistence failures and keep app responsive.
+    });
+  }, [language, ready]);
 
   const t = React.useCallback(
     (key: string, vars?: Record<string, string | number | null | undefined>) => translate(key, vars, language),
@@ -562,6 +590,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = React.useMemo(() => ({ language, setLanguage, t }), [language, t]);
+
+  if (!ready) return null;
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
