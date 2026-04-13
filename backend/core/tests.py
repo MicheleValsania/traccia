@@ -224,7 +224,7 @@ class HaccpApiTests(TestCase):
         self.assertEqual(resp["Content-Type"], "image/jpeg")
         self.assertEqual(resp["X-Drive-File-Id"], "drive-file-001")
 
-    def test_alerts_hide_lots_after_dlc_day_ends(self):
+    def test_alerts_include_expired_lots_until_they_are_resolved(self):
         user = User.objects.create_user(username="alert-op", password="test123")
         Membership.objects.create(user=user, site=self.site, role=MembershipRole.OPERATOR)
         self.client.force_authenticate(user=user)
@@ -253,8 +253,11 @@ class HaccpApiTests(TestCase):
 
         self.assertEqual(resp.status_code, 200)
         payload = resp.json()
-        self.assertEqual(len(payload), 1)
-        self.assertEqual(payload[0]["lot_code"], today_lot.internal_lot_code)
+        self.assertEqual(len(payload), 2)
+        self.assertEqual(payload[0]["lot_code"], expired_lot.internal_lot_code)
+        self.assertEqual(payload[1]["lot_code"], today_lot.internal_lot_code)
+        self.assertEqual(payload[0]["alert_type"], "EXPIRED")
+        self.assertLess(payload[0]["days_to_expiry"], 0)
 
     def test_resolving_latest_alert_hides_lot_even_if_older_alerts_exist(self):
         user = User.objects.create_user(username="alert-manager", password="test123")

@@ -1295,7 +1295,6 @@ class AlertListView(generics.ListAPIView):
         qs = (
             Alert.objects.select_related("lot")
             .filter(lot__status__in=[LotStatus.DRAFT, LotStatus.ACTIVE])
-            .filter(lot__dlc_date__gte=timezone.localdate())
             .order_by("trigger_at")
         )
         site_code = self.request.query_params.get("site_code")
