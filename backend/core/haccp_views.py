@@ -19,6 +19,7 @@ from .haccp_serializers import (
     HaccpLabelProfileWriteSerializer,
     HaccpLabelSessionWriteSerializer,
     HaccpOcrValidationSerializer,
+    HaccpTraceabilityValidationUpsertSerializer,
     HaccpSchedulePatchSerializer,
     HaccpScheduleWriteSerializer,
     HaccpSectorSyncItemSerializer,
@@ -42,6 +43,7 @@ from .models import (
     LabelProfile,
     Lot,
     LotEvent,
+    LotStatus,
     Membership,
     MembershipRole,
     OcrJob,
@@ -51,7 +53,7 @@ from .models import (
     TemperatureReading,
 )
 from .serializers import TemperatureReadingSerializer
-from .services import download_from_drive, log_audit_event
+from .services import download_from_drive, log_audit_event, next_internal_code, normalize_quantity_unit
 
 SITE_READ_ROLES = {
     MembershipRole.ADMIN,
@@ -774,6 +776,108 @@ class HaccpOcrResultValidateView(APIView):
             payload={"document_id": str(document_id), "status": job.validation_status},
         )
         return Response({"document_id": str(document_id), "status": job.validation_status, "corrected_payload": corrected_payload}, status=status.HTTP_200_OK)
+
+
+class HaccpTraceabilityValidationUpsertView(APIView):
+    permission_classes = [AllowAny]
+
+    @transaction.atomic
+    def post(self, request):
+        serializer = HaccpTraceabilityValidationUpsertSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        site = _resolve_site(data.get("site"))
+        if not site:
+            return Response({"detail": "site is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        auth_error = _ensure_access(request, site, write=True)
+        if auth_error:
+            return auth_error
+
+        source_document_id = str(data["source_document_id"])
+        lot = (
+            Lot.objects.select_for_update()
+            .filter(site=site, ai_payload__source_document_id=source_document_id)
+            .order_by("-updated_at")
+            .first()
+        )
+        created = lot is None
+        if lot is None:
+            requested_internal_code = str(data.get("internal_lot_code") or "").strip()
+            if requested_internal_code:
+                lot = (
+                    Lot.objects.select_for_update()
+                    .filter(site=site, internal_lot_code=requested_internal_code)
+                    .order_by("-updated_at")
+                    .first()
+                )
+                created = lot is None
+            if lot is None:
+                lot = Lot(
+                    site=site,
+                    internal_lot_code=requested_internal_code or next_internal_code(site.code),
+                    status=LotStatus.ACTIVE,
+                    ai_suggested=False,
+                )
+
+        lot.supplier_name = str(data.get("supplier_name") or lot.supplier_name or "").strip()
+        lot.supplier_lot_code = str(data.get("supplier_lot_code") or lot.supplier_lot_code or "").strip()
+        lot.production_date = data.get("production_date") or lot.production_date
+        lot.dlc_date = data.get("dlc_date") or lot.dlc_date
+        lot.quantity_value = data.get("quantity_value") if data.get("quantity_value") is not None else lot.quantity_value
+        normalized_unit = normalize_quantity_unit(data.get("quantity_unit"))
+        if normalized_unit:
+            lot.quantity_unit = normalized_unit
+        category = str(data.get("category") or "").strip()
+        if category:
+            lot.category_snapshot = category
+        lot.validated_at = timezone.now()
+        lot.status = LotStatus.ACTIVE
+
+        payload = lot.ai_payload if isinstance(lot.ai_payload, dict) else {}
+        corrected_payload = data.get("corrected_payload") if isinstance(data.get("corrected_payload"), dict) else {}
+        payload.update(
+            {
+                "source_document_id": source_document_id,
+                "source_document_filename": str(data.get("source_document_filename") or payload.get("source_document_filename") or "").strip(),
+                "product_guess": str(data.get("product_guess") or corrected_payload.get("product_guess") or payload.get("product_guess") or "").strip(),
+                "supplier_lot_code": lot.supplier_lot_code,
+                "dlc_date": lot.dlc_date.isoformat() if lot.dlc_date else "",
+                "production_date": lot.production_date.isoformat() if lot.production_date else "",
+                "quantity_value": str(lot.quantity_value) if lot.quantity_value is not None else "",
+                "quantity_unit": lot.quantity_unit,
+                "validation_source": "cookops",
+                "corrected_payload": corrected_payload or payload.get("corrected_payload") or {},
+            }
+        )
+        lot.ai_payload = payload
+        lot.save()
+        if lot.dlc_date:
+            lot.schedule_expiry_alerts()
+
+        log_audit_event(
+            action="HACCP_TRACEABILITY_LABEL_SYNCED",
+            request=request,
+            site=site,
+            object_type="Lot",
+            object_id=str(lot.id),
+            payload={
+                "source_document_id": source_document_id,
+                "created": created,
+                "internal_lot_code": lot.internal_lot_code,
+                "alerts_created": lot.alerts.count(),
+            },
+        )
+        return Response(
+            {
+                "lot_id": str(lot.id),
+                "internal_lot_code": lot.internal_lot_code,
+                "created": created,
+                "alerts_created": lot.alerts.count(),
+            },
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
 
 class HaccpLifecycleEventListView(APIView):

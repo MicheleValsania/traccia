@@ -106,6 +106,22 @@ class HaccpOcrValidationSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=OcrValidationStatus.choices, required=False, default=OcrValidationStatus.VALIDATED)
 
 
+class HaccpTraceabilityValidationUpsertSerializer(serializers.Serializer):
+    site = serializers.CharField()
+    source_document_id = serializers.UUIDField()
+    source_document_filename = serializers.CharField(required=False, allow_blank=True, default="")
+    supplier_name = serializers.CharField(required=False, allow_blank=True, default="")
+    supplier_lot_code = serializers.CharField(required=False, allow_blank=True, default="")
+    internal_lot_code = serializers.CharField(required=False, allow_blank=True, default="")
+    product_guess = serializers.CharField(required=False, allow_blank=True, default="")
+    quantity_value = serializers.DecimalField(max_digits=12, decimal_places=3, required=False, allow_null=True)
+    quantity_unit = serializers.CharField(required=False, allow_blank=True, default="")
+    production_date = serializers.DateField(required=False, allow_null=True)
+    dlc_date = serializers.DateField(required=False, allow_null=True)
+    category = serializers.CharField(required=False, allow_blank=True, default="")
+    corrected_payload = serializers.JSONField(required=False)
+
+
 class HaccpLabelProfileWriteSerializer(serializers.Serializer):
     site = serializers.UUIDField()
     name = serializers.CharField(max_length=120)

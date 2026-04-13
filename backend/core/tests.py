@@ -198,6 +198,35 @@ class HaccpApiTests(TestCase):
         self.assertEqual(resp.status_code, 204)
         self.assertFalse(ColdSector.objects.filter(id=sector.id).exists())
 
+    def test_traceability_validation_upsert_creates_active_lot_and_alerts(self):
+        resp = self.client.post(
+            "/api/v1/haccp/traceability-validations/",
+            {
+                "site": str(self.external_site_id),
+                "source_document_id": str(uuid.uuid4()),
+                "source_document_filename": "capture.jpg",
+                "supplier_name": "ATSCASH",
+                "supplier_lot_code": "LOT-TRACE-001",
+                "product_guess": "Jaune d'oeuf cocotine",
+                "quantity_value": "2.000",
+                "quantity_unit": "l",
+                "dlc_date": str(timezone.localdate()),
+                "category": "bof",
+                "corrected_payload": {"product_guess": "Jaune d'oeuf cocotine"},
+            },
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 201)
+        lot = Lot.objects.get(supplier_lot_code="LOT-TRACE-001")
+        self.assertEqual(lot.status, LotStatus.ACTIVE)
+        self.assertEqual(str(lot.quantity_value), "2.000")
+        self.assertEqual(lot.quantity_unit, "l")
+        self.assertEqual(lot.category_snapshot, "bof")
+        self.assertEqual(lot.ai_payload["source_document_filename"], "capture.jpg")
+        self.assertEqual(lot.ai_payload["product_guess"], "Jaune d'oeuf cocotine")
+        self.assertGreaterEqual(lot.alerts.count(), 1)
+
     @patch("core.haccp_views.download_from_drive", return_value=(b"image-bytes", "image/jpeg"))
     def test_haccp_asset_list_and_download(self, _download_mock):
         asset = Asset.objects.create(
