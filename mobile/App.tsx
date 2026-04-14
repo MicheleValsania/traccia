@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import { Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
@@ -15,6 +16,8 @@ import { TemperatureScreen } from "./src/screens/TemperatureScreen";
 import { appStyles } from "./src/styles";
 import { MeMembership, TabKey } from "./src/types";
 
+const SITE_STORAGE_KEY = "traccia.site.code";
+
 function AppShell() {
   const { language, setLanguage, t } = useI18n();
   const tabs: Array<{ key: TabKey; icon: string; label: string }> = [
@@ -28,7 +31,8 @@ function AppShell() {
 
   const [activeTab, setActiveTab] = useState<TabKey>("camera");
   const [navHint, setNavHint] = useState("");
-  const [siteCode, setSiteCode] = useState("MAIN");
+  const [siteCode, setSiteCode] = useState("");
+  const [siteLoaded, setSiteLoaded] = useState(false);
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
@@ -43,12 +47,38 @@ function AppShell() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    void AsyncStorage.getItem(SITE_STORAGE_KEY)
+      .then((saved) => {
+        if (!cancelled && saved) {
+          setSiteCode(saved);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSiteLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!siteLoaded || !siteCode) return;
+    void AsyncStorage.setItem(SITE_STORAGE_KEY, siteCode).catch(() => {
+      // Ignore persistence errors and keep the selected site in memory.
+    });
+  }, [siteCode, siteLoaded]);
+
   async function refreshProfile(nextToken = token) {
     if (!nextToken) return;
     const profile = await fetchMe(nextToken);
     const nextMemberships = Array.isArray(profile.memberships) ? profile.memberships : [];
     setMemberships(nextMemberships);
-    const hasCurrentSite = nextMemberships.some((membership) => membership.site_code === siteCode);
+    const preferredSite = siteCode.trim();
+    const hasCurrentSite = preferredSite
+      ? nextMemberships.some((membership) => membership.site_code === preferredSite)
+      : false;
     if (!hasCurrentSite) {
       const firstMembership = nextMemberships[0];
       if (firstMembership) {
@@ -122,11 +152,11 @@ function AppShell() {
           </View>
         ) : null}
 
-        {token && activeTab === "camera" ? <CaptureScreen token={token} siteCode={siteCode} loading={loading} setLoading={setLoading} setError={setError} /> : null}
-        {token && activeTab === "dashboard" ? <ReportsScreen siteCode={siteCode} token={token} /> : null}
-        {token && activeTab === "temperatures" ? <TemperatureScreen token={token} siteCode={siteCode} setError={setError} /> : null}
-        {token && activeTab === "cleaning" ? <CleaningScreen token={token} siteCode={siteCode} setError={setError} /> : null}
-        {token && activeTab === "labels" ? <LabelsScreen token={token} siteCode={siteCode} setError={setError} /> : null}
+        {token && siteCode && activeTab === "camera" ? <CaptureScreen token={token} siteCode={siteCode} loading={loading} setLoading={setLoading} setError={setError} /> : null}
+        {token && siteCode && activeTab === "dashboard" ? <ReportsScreen siteCode={siteCode} token={token} /> : null}
+        {token && siteCode && activeTab === "temperatures" ? <TemperatureScreen token={token} siteCode={siteCode} setError={setError} /> : null}
+        {token && siteCode && activeTab === "cleaning" ? <CleaningScreen token={token} siteCode={siteCode} setError={setError} /> : null}
+        {token && siteCode && activeTab === "labels" ? <LabelsScreen token={token} siteCode={siteCode} setError={setError} /> : null}
 
         {token && activeTab === "settings" ? (
           <View style={appStyles.card}>
@@ -146,7 +176,7 @@ function AppShell() {
                     ]}
                     onPress={() => setSiteCode(membership.site_code)}
                   >
-                    <Text style={[appStyles.tabText, membership.site_code === siteCode ? appStyles.tabTextActive : undefined]}>{membership.site_name}</Text>
+                    <Text style={[appStyles.tabText, membership.site_code === siteCode ? appStyles.tabTextActive : undefined]}>{`${membership.site_name} (${membership.site_code})`}</Text>
                   </Pressable>
                 ))}
               </View>
