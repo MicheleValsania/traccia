@@ -4,6 +4,7 @@ from urllib import parse as urllib_parse
 from urllib import request as urllib_request
 
 from django.conf import settings
+from rest_framework.exceptions import APIException
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,10 +13,21 @@ from .models import Site
 from .views import SITE_READ_ROLES, SITE_WRITE_ROLES, _ensure_site_role
 
 
+class CookOpsProxyError(APIException):
+    status_code = status.HTTP_502_BAD_GATEWAY
+    default_detail = "CookOps inventory service is unavailable."
+    default_code = "cookops_proxy_error"
+
+    def __init__(self, detail: str, *, status_code: int | None = None):
+        if status_code is not None:
+            self.status_code = status_code
+        super().__init__(detail)
+
+
 def _cookops_base_url() -> str:
     raw = str(getattr(settings, "COOKOPS_API_BASE_URL", "") or "").strip().rstrip("/")
     if not raw:
-        raise RuntimeError("COOKOPS_API_BASE_URL is not configured.")
+        raise CookOpsProxyError("COOKOPS_API_BASE_URL is not configured.", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
     return raw
 
 
@@ -45,7 +57,10 @@ def _cookops_request_json(method: str, path: str, *, query: dict[str, str] | Non
     try:
         with urllib_request.urlopen(request, timeout=timeout) as response:
             raw = response.read().decode("utf-8") or ""
-            return response.getcode(), json.loads(raw) if raw else {}
+            try:
+                return response.getcode(), json.loads(raw) if raw else {}
+            except json.JSONDecodeError as exc:
+                raise CookOpsProxyError("CookOps returned invalid JSON.", status_code=status.HTTP_502_BAD_GATEWAY) from exc
     except urllib_error.HTTPError as exc:
         raw = exc.read().decode("utf-8") if exc.fp else ""
         try:
@@ -54,7 +69,7 @@ def _cookops_request_json(method: str, path: str, *, query: dict[str, str] | Non
             payload = {"detail": raw or exc.reason}
         return exc.code, payload
     except urllib_error.URLError as exc:
-        raise RuntimeError(f"CookOps request failed: {exc.reason}") from exc
+        raise CookOpsProxyError(f"CookOps request failed: {exc.reason}", status_code=status.HTTP_502_BAD_GATEWAY) from exc
 
 
 def _resolve_site_for_request(request, site_code: str, *, write: bool) -> tuple[Site | None, Response | None]:
