@@ -22,6 +22,16 @@ from .haccp_views import (
     HaccpSiteListView,
     HaccpSiteSyncView,
 )
+from .cookops_inventory_views import (
+    InventoryProductListView,
+    InventorySectorListView,
+    InventorySessionCloseView,
+    InventorySessionDetailView,
+    InventorySessionLinesBulkUpsertView,
+    InventorySessionListCreateView,
+    InventoryStockPointListView,
+    InventorySupplierListView,
+)
 from .views import (
     AlertListView,
     AlertStatusUpdateView,
@@ -72,6 +82,14 @@ urlpatterns = [
     path("v1/haccp/label-profiles/", HaccpLabelProfileListCreateView.as_view(), name="haccp-label-profile-list-create"),
     path("v1/haccp/label-profiles/<uuid:profile_id>/", HaccpLabelProfileDetailView.as_view(), name="haccp-label-profile-detail"),
     path("v1/haccp/label-sessions/", HaccpLabelSessionListCreateView.as_view(), name="haccp-label-session-list-create"),
+    path("inventory/suppliers", InventorySupplierListView.as_view(), name="inventory-supplier-list"),
+    path("inventory/sectors", InventorySectorListView.as_view(), name="inventory-sector-list"),
+    path("inventory/stock-points", InventoryStockPointListView.as_view(), name="inventory-stock-point-list"),
+    path("inventory/products", InventoryProductListView.as_view(), name="inventory-product-list"),
+    path("inventory/sessions", InventorySessionListCreateView.as_view(), name="inventory-session-list-create"),
+    path("inventory/sessions/<uuid:session_id>", InventorySessionDetailView.as_view(), name="inventory-session-detail"),
+    path("inventory/sessions/<uuid:session_id>/lines/bulk-upsert", InventorySessionLinesBulkUpsertView.as_view(), name="inventory-session-lines-bulk-upsert"),
+    path("inventory/sessions/<uuid:session_id>/close", InventorySessionCloseView.as_view(), name="inventory-session-close"),
     path("debug/env", debug_env, name="debug-env"),
     path("auth/token", TokenLoginView.as_view(), name="auth-token"),
     path("auth/me", MeView.as_view(), name="auth-me"),

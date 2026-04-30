@@ -13,6 +13,7 @@ import { CleaningScreen } from "./src/screens/CleaningScreen";
 import { LabelsScreen } from "./src/screens/LabelsScreen";
 import { ReportsScreen } from "./src/screens/ReportsScreen";
 import { TemperatureScreen } from "./src/screens/TemperatureScreen";
+import { InventoryScreen } from "./src/screens/InventoryScreen";
 import { appStyles } from "./src/styles";
 import { MeMembership, TabKey } from "./src/types";
 
@@ -26,6 +27,7 @@ function AppShell() {
     { key: "temperatures", icon: "\u{1F321}\uFE0F", label: t("tab.temperatures") },
     { key: "cleaning", icon: "\u{1F9FD}", label: t("tab.cleaning") },
     { key: "labels", icon: "\u{1F3F7}\uFE0F", label: t("tab.labels") },
+    { key: "inventory", icon: "\u{1F4E6}", label: t("tab.inventory") },
     { key: "settings", icon: "\u2699\uFE0F", label: t("tab.settings") },
   ];
 
@@ -157,6 +159,7 @@ function AppShell() {
         {token && siteCode && activeTab === "temperatures" ? <TemperatureScreen token={token} siteCode={siteCode} setError={setError} /> : null}
         {token && siteCode && activeTab === "cleaning" ? <CleaningScreen token={token} siteCode={siteCode} setError={setError} /> : null}
         {token && siteCode && activeTab === "labels" ? <LabelsScreen token={token} siteCode={siteCode} setError={setError} /> : null}
+        {token && siteCode && activeTab === "inventory" ? <InventoryScreen token={token} siteCode={siteCode} setError={setError} /> : null}
 
         {token && activeTab === "settings" ? (
           <View style={appStyles.card}>

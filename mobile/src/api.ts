@@ -5,6 +5,12 @@ import {
   ColdPoint,
   ColdSector,
   HaccpSchedule,
+  InventoryProduct,
+  InventorySector,
+  InventorySession,
+  InventorySessionLine,
+  InventoryStockPoint,
+  InventorySupplier,
   LabelPrintJob,
   LabelProfile,
   MeResponse,
@@ -73,6 +79,148 @@ export async function fetchMe(token: string): Promise<MeResponse> {
     throw new Error(details || translate("api.me_failed"));
   }
   return (await response.json()) as MeResponse;
+}
+
+export async function fetchInventorySuppliers(token: string, siteCode: string): Promise<InventorySupplier[]> {
+  const response = await fetch(`${API_BASE}/inventory/suppliers?site_code=${encodeURIComponent(siteCode)}`, withAuth(token, { method: "GET" }));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento fornitori inventario fallito.");
+  }
+  return (await response.json()) as InventorySupplier[];
+}
+
+export async function fetchInventorySectors(token: string, siteCode: string): Promise<InventorySector[]> {
+  const response = await fetch(`${API_BASE}/inventory/sectors?site_code=${encodeURIComponent(siteCode)}`, withAuth(token, { method: "GET" }));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento settori inventario fallito.");
+  }
+  return (await response.json()) as InventorySector[];
+}
+
+export async function fetchInventoryStockPoints(token: string, siteCode: string, sectorId?: string): Promise<InventoryStockPoint[]> {
+  const query = new URLSearchParams({ site_code: siteCode });
+  if (sectorId) query.set("sector_id", sectorId);
+  const response = await fetch(`${API_BASE}/inventory/stock-points?${query.toString()}`, withAuth(token, { method: "GET" }));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento punti stock fallito.");
+  }
+  return (await response.json()) as InventoryStockPoint[];
+}
+
+export async function fetchInventoryProducts(
+  token: string,
+  siteCode: string,
+  params?: { q?: string; category?: string; supplierId?: string },
+): Promise<InventoryProduct[]> {
+  const query = new URLSearchParams({ site_code: siteCode });
+  if (params?.q) query.set("q", params.q);
+  if (params?.category) query.set("category", params.category);
+  if (params?.supplierId) query.set("supplier_id", params.supplierId);
+  const response = await fetch(`${API_BASE}/inventory/products?${query.toString()}`, withAuth(token, { method: "GET" }));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento prodotti inventario fallito.");
+  }
+  const body = (await response.json()) as { results?: InventoryProduct[] };
+  return Array.isArray(body.results) ? body.results : [];
+}
+
+export async function fetchInventorySessions(token: string, siteCode: string): Promise<InventorySession[]> {
+  const response = await fetch(`${API_BASE}/inventory/sessions?site_code=${encodeURIComponent(siteCode)}`, withAuth(token, { method: "GET" }));
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento sessioni inventario fallito.");
+  }
+  return (await response.json()) as InventorySession[];
+}
+
+export async function createInventorySession(params: {
+  token: string;
+  siteCode: string;
+  sectorId?: string;
+  label?: string;
+  countScope?: "site" | "sector" | "point";
+}): Promise<InventorySession> {
+  const response = await fetch(
+    `${API_BASE}/inventory/sessions`,
+    withAuth(params.token, {
+      method: "POST",
+      body: JSON.stringify({
+        site_code: params.siteCode,
+        sector_id: params.sectorId || null,
+        label: params.label || null,
+        count_scope: params.countScope || "sector",
+      }),
+    }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Creazione sessione inventario fallita.");
+  }
+  return (await response.json()) as InventorySession;
+}
+
+export async function fetchInventorySessionDetail(token: string, siteCode: string, sessionId: string): Promise<InventorySession> {
+  const response = await fetch(
+    `${API_BASE}/inventory/sessions/${encodeURIComponent(sessionId)}?site_code=${encodeURIComponent(siteCode)}`,
+    withAuth(token, { method: "GET" }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Caricamento dettaglio sessione inventario fallito.");
+  }
+  return (await response.json()) as InventorySession;
+}
+
+export async function saveInventorySessionLines(params: {
+  token: string;
+  siteCode: string;
+  sessionId: string;
+  lines: Array<{
+    stock_point?: string | null;
+    supplier_product: string;
+    qty_value: string;
+    qty_unit: string;
+    line_order?: number;
+  }>;
+}): Promise<{ saved_count: number; lines: InventorySessionLine[] }> {
+  const response = await fetch(
+    `${API_BASE}/inventory/sessions/${encodeURIComponent(params.sessionId)}/lines/bulk-upsert`,
+    withAuth(params.token, {
+      method: "POST",
+      body: JSON.stringify({
+        site_code: params.siteCode,
+        lines: params.lines,
+      }),
+    }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Salvataggio righe inventario fallito.");
+  }
+  return (await response.json()) as { saved_count: number; lines: InventorySessionLine[] };
+}
+
+export async function closeInventorySession(params: {
+  token: string;
+  siteCode: string;
+  sessionId: string;
+}): Promise<{ session_id: string; created_adjustments: number; closed_at: string }> {
+  const response = await fetch(
+    `${API_BASE}/inventory/sessions/${encodeURIComponent(params.sessionId)}/close`,
+    withAuth(params.token, {
+      method: "POST",
+      body: JSON.stringify({ site_code: params.siteCode }),
+    }),
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || "Chiusura sessione inventario fallita.");
+  }
+  return (await response.json()) as { session_id: string; created_adjustments: number; closed_at: string };
 }
 
 export async function fetchHaccpSectors(token: string, siteCode: string): Promise<ColdSector[]> {

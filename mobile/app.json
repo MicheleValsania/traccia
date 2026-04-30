@@ -1,17 +1,49 @@
 {
   "expo": {
-    "name": "Traceability",
-    "slug": "traceability",
+    "name": "Traccia",
+    "slug": "traccia",
     "version": "0.1.0",
     "orientation": "portrait",
     "assetBundlePatterns": [
       "**/*"
     ],
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Traccia to use the camera for HACCP capture and temperature logging."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Traccia to access photos for HACCP workflows.",
+          "cameraPermission": "Allow Traccia to capture images for HACCP workflows."
+        }
+      ]
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "fr.chefside.traccia"
+    },
+    "android": {
+      "package": "fr.chefside.traccia",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "05d583e3-3970-4426-93d3-bf0200fd15de"
+      }
     }
   }
 }

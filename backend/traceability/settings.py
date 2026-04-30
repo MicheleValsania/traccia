@@ -104,6 +104,9 @@ if not DEBUG:
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", os.getenv("TRACCIA_API_KEY", ""))
+COOKOPS_API_BASE_URL = os.getenv("COOKOPS_API_BASE_URL", "").strip()
+COOKOPS_API_KEY = os.getenv("COOKOPS_API_KEY", "").strip()
+COOKOPS_TIMEOUT_SECONDS = int(os.getenv("COOKOPS_TIMEOUT_SECONDS", "12"))
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

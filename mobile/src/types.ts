@@ -200,6 +200,81 @@ export type LabelPrintJob = {
   created_at: string;
 };
 
-export type TabKey = "camera" | "dashboard" | "temperatures" | "cleaning" | "labels" | "settings";
+export type InventorySector = {
+  id: string;
+  site: string;
+  site_name?: string;
+  name: string;
+  code?: string | null;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export type InventoryStockPoint = {
+  id: string;
+  site: string;
+  site_name?: string;
+  sector: string;
+  sector_name?: string;
+  name: string;
+  code?: string | null;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export type InventorySupplier = {
+  id: string;
+  name: string;
+  vat_number?: string | null;
+};
+
+export type InventoryProduct = {
+  supplier_product_id: string;
+  supplier_id: string;
+  supplier_name: string;
+  supplier_code?: string | null;
+  product_name: string;
+  category?: string | null;
+  qty_unit: string;
+  current_stock: string;
+  last_movement_at?: string | null;
+  active: boolean;
+};
+
+export type InventorySessionLine = {
+  id?: string;
+  session?: string;
+  stock_point?: string | null;
+  stock_point_name?: string | null;
+  supplier_product: string;
+  supplier_product_name?: string | null;
+  supplier_id?: string | null;
+  supplier_name?: string | null;
+  supplier_code?: string | null;
+  qty_value: string;
+  qty_unit: string;
+  expected_qty?: string;
+  delta_qty?: string;
+  line_order?: number;
+  counted_at?: string | null;
+};
+
+export type InventorySession = {
+  id: string;
+  site: string;
+  site_name?: string;
+  sector?: string | null;
+  sector_name?: string | null;
+  label?: string | null;
+  status: "draft" | "in_progress" | "closed" | "cancelled";
+  source_app: string;
+  count_scope: "site" | "sector" | "point";
+  notes?: string | null;
+  started_at: string;
+  closed_at?: string | null;
+  lines?: InventorySessionLine[];
+};
+
+export type TabKey = "camera" | "dashboard" | "temperatures" | "cleaning" | "labels" | "inventory" | "settings";
 
 
