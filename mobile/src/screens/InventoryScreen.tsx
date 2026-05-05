@@ -34,7 +34,9 @@ export function InventoryScreen(props: Props) {
   const [suppliers, setSuppliers] = React.useState<InventorySupplier[]>([]);
   const [sessions, setSessions] = React.useState<InventorySession[]>([]);
   const [products, setProducts] = React.useState<InventoryProduct[]>([]);
-  const [lines, setLines] = React.useState<InventorySessionLine[]>([]);
+  const [draftLines, setDraftLines] = React.useState<InventorySessionLine[]>([]);
+  const [savedLines, setSavedLines] = React.useState<InventorySessionLine[]>([]);
+  const [savedLineCount, setSavedLineCount] = React.useState(0);
   const [selectedSectorId, setSelectedSectorId] = React.useState("");
   const [selectedStockPointId, setSelectedStockPointId] = React.useState("");
   const [selectedSupplierId, setSelectedSupplierId] = React.useState("");
@@ -43,12 +45,29 @@ export function InventoryScreen(props: Props) {
   const [search, setSearch] = React.useState("");
   const [category, setCategory] = React.useState("");
   const [showOnlyDifferences, setShowOnlyDifferences] = React.useState(false);
-  const [showOnlyInStock, setShowOnlyInStock] = React.useState(true);
+  const [showOnlyInStock, setShowOnlyInStock] = React.useState(false);
 
   React.useEffect(() => {
     if (!props.token) return;
     void loadConfiguration();
   }, [props.token, props.siteCode]);
+
+  React.useEffect(() => {
+    if (!props.token) return;
+    const hasSearchCriteria =
+      search.trim().length >= 2 ||
+      Boolean(category) ||
+      Boolean(selectedSupplierId) ||
+      showOnlyInStock;
+    if (!hasSearchCriteria) {
+      setProducts([]);
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      void searchProducts();
+    }, 250);
+    return () => clearTimeout(timeoutId);
+  }, [props.token, props.siteCode, search, category, selectedSupplierId, showOnlyInStock]);
 
   async function loadConfiguration() {
     setLoading(true);
@@ -85,7 +104,10 @@ export function InventoryScreen(props: Props) {
 
   async function loadSessionDetail(sessionId: string) {
     const detail = await fetchInventorySessionDetail(props.token, props.siteCode, sessionId);
-    setLines(Array.isArray(detail.lines) ? detail.lines : []);
+    const nextSavedLines = Array.isArray(detail.lines) ? detail.lines : [];
+    setSavedLines(nextSavedLines);
+    setSavedLineCount(nextSavedLines.length);
+    setDraftLines([]);
   }
 
   async function onSectorChange(nextSectorId: string) {
@@ -134,7 +156,9 @@ export function InventoryScreen(props: Props) {
       });
       setSessions((prev) => [session, ...prev]);
       setSelectedSessionId(session.id);
-      setLines([]);
+      setDraftLines([]);
+      setSavedLines([]);
+      setSavedLineCount(0);
       setSessionLabel("");
       setInfoMessage(t("inventory.session_created"));
     } catch (e) {
@@ -149,7 +173,7 @@ export function InventoryScreen(props: Props) {
       props.setError(t("inventory.session_required"));
       return;
     }
-    setLines((prev) => {
+    setDraftLines((prev) => {
       const exists = prev.some(
         (line) => line.supplier_product === product.supplier_product_id && line.qty_unit === product.qty_unit && (line.stock_point || "") === selectedStockPointId,
       );
@@ -172,10 +196,12 @@ export function InventoryScreen(props: Props) {
         },
       ];
     });
+    setSearch("");
+    setProducts([]);
   }
 
   function updateLine(index: number, qtyValue: string, stockPointId?: string | null) {
-    setLines((prev) =>
+    setDraftLines((prev) =>
       prev.map((line, rowIndex) => {
         if (rowIndex !== index) return line;
         const next = {
@@ -192,7 +218,7 @@ export function InventoryScreen(props: Props) {
   }
 
   function adjustLine(index: number, action: "match" | "zero" | "inc" | "dec") {
-    const line = lines[index];
+    const line = draftLines[index];
     if (!line) return;
     const current = Number.parseFloat(String(line.qty_value ?? "0").replace(",", "."));
     const expected = Number.parseFloat(String(line.expected_qty ?? "0").replace(",", "."));
@@ -218,13 +244,13 @@ export function InventoryScreen(props: Props) {
       props.setError(t("inventory.session_required"));
       return;
     }
-    if (!lines.length) {
+    if (!draftLines.length) {
       props.setError(t("inventory.lines_required"));
       return;
     }
     setSaving(true);
     try {
-      const payload = lines.map((line, index) => ({
+      const payload = draftLines.map((line, index) => ({
         stock_point: line.stock_point || null,
         supplier_product: line.supplier_product,
         qty_value: String(line.qty_value ?? "0").replace(",", "."),
@@ -237,8 +263,51 @@ export function InventoryScreen(props: Props) {
         sessionId: selectedSessionId,
         lines: payload,
       });
-      setLines(result.lines);
+      setSavedLines((prev) => {
+        const merged = mergeInventoryLines(prev, result.lines);
+        setSavedLineCount(merged.length);
+        return merged;
+      });
+      setDraftLines([]);
       setInfoMessage(t("inventory.lines_saved", { count: result.saved_count }));
+      const nextSessions = await fetchInventorySessions(props.token, props.siteCode);
+      setSessions(nextSessions);
+    } catch (e) {
+      props.setError(e instanceof Error ? e.message : t("inventory.lines_save_error"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveSingleLine(index: number) {
+    const line = draftLines[index];
+    if (!line || !selectedSessionId) {
+      props.setError(t("inventory.session_required"));
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await saveInventorySessionLines({
+        token: props.token,
+        siteCode: props.siteCode,
+        sessionId: selectedSessionId,
+        lines: [
+          {
+            stock_point: line.stock_point || null,
+            supplier_product: line.supplier_product,
+            qty_value: String(line.qty_value ?? "0").replace(",", "."),
+            qty_unit: line.qty_unit,
+            line_order: typeof line.line_order === "number" ? line.line_order : index,
+          },
+        ],
+      });
+      setSavedLines((prev) => {
+        const merged = mergeInventoryLines(prev, result.lines);
+        setSavedLineCount(merged.length);
+        return merged;
+      });
+      setDraftLines((prev) => prev.filter((_, rowIndex) => rowIndex !== index));
+      setInfoMessage(t("inventory.line_saved"));
       const nextSessions = await fetchInventorySessions(props.token, props.siteCode);
       setSessions(nextSessions);
     } catch (e) {
@@ -263,6 +332,7 @@ export function InventoryScreen(props: Props) {
       setInfoMessage(t("inventory.session_closed", { count: result.created_adjustments }));
       const nextSessions = await fetchInventorySessions(props.token, props.siteCode);
       setSessions(nextSessions);
+      setDraftLines([]);
       await loadSessionDetail(selectedSessionId);
     } catch (e) {
       props.setError(e instanceof Error ? e.message : t("inventory.close_error"));
@@ -271,7 +341,7 @@ export function InventoryScreen(props: Props) {
     }
   }
 
-  const filteredLines = lines.filter((line) => {
+  const filteredLines = draftLines.filter((line) => {
     if (!showOnlyDifferences) return true;
     const delta = Number.parseFloat(String(line.delta_qty ?? "0").replace(",", "."));
     return Number.isFinite(delta) ? delta !== 0 : true;
@@ -283,11 +353,30 @@ export function InventoryScreen(props: Props) {
     return delta > 0 ? appStyles.success : appStyles.critical;
   }
 
+  function mergeInventoryLines(current: InventorySessionLine[], incoming: InventorySessionLine[]) {
+    const merged = [...current];
+    incoming.forEach((line) => {
+      const existingIndex = merged.findIndex(
+        (item) =>
+          item.supplier_product === line.supplier_product &&
+          item.qty_unit === line.qty_unit &&
+          String(item.stock_point || "") === String(line.stock_point || ""),
+      );
+      if (existingIndex >= 0) {
+        merged[existingIndex] = line;
+      } else {
+        merged.push(line);
+      }
+    });
+    return merged;
+  }
+
   return (
     <View style={appStyles.card}>
       <Text style={appStyles.sectionTitle}>{t("inventory.title")}</Text>
       <Text style={appStyles.tokenPreview}>{t("inventory.subtitle")}</Text>
       <Text style={appStyles.tokenPreview}>{t("inventory.site", { value: props.siteCode })}</Text>
+      <Text style={appStyles.success}>{t("inventory.saved_lines_count", { count: savedLineCount })}</Text>
       {infoMessage ? <Text style={appStyles.success}>{infoMessage}</Text> : null}
 
       <Text style={appStyles.label}>{t("inventory.sector")}</Text>
@@ -416,9 +505,7 @@ export function InventoryScreen(props: Props) {
           ))}
         </View>
       </ScrollView>
-      <Pressable style={({ pressed }) => [appStyles.buttonSecondary, pressed ? appStyles.buttonSecondaryPressed : undefined]} onPress={() => void searchProducts()}>
-        <Text style={appStyles.buttonSecondaryText}>{loading ? t("inventory.processing") : t("inventory.load_products")}</Text>
-      </Pressable>
+      {loading ? <Text style={appStyles.tokenPreview}>{t("inventory.loading_products")}</Text> : null}
 
       {products.map((product) => (
         <View key={product.supplier_product_id} style={appStyles.listItem}>
@@ -449,7 +536,7 @@ export function InventoryScreen(props: Props) {
       </ScrollView>
       {filteredLines.length === 0 ? <Text style={appStyles.tokenPreview}>{t("inventory.no_lines")}</Text> : null}
       {filteredLines.map((line) => {
-        const index = lines.findIndex((item) => item === line);
+        const index = draftLines.findIndex((item) => item === line);
         return (
           <View key={`${line.supplier_product}-${index}`} style={[appStyles.listItem, { alignItems: "flex-start", flexDirection: "column" }]}>
             <View style={{ width: "100%", gap: 4 }}>
@@ -500,6 +587,12 @@ export function InventoryScreen(props: Props) {
                 </Pressable>
                 <Pressable style={({ pressed }) => [appStyles.tabButton, pressed ? appStyles.tabButtonPressed : undefined]} onPress={() => adjustLine(index, "inc")}>
                   <Text style={appStyles.tabText}>+1</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [appStyles.tabButton, appStyles.tabButtonActive, pressed ? appStyles.tabButtonPressed : undefined]}
+                  onPress={() => void saveSingleLine(index)}
+                >
+                  <Text style={[appStyles.tabText, appStyles.tabTextActive]}>{t("inventory.validate_line")}</Text>
                 </Pressable>
               </View>
               <Text style={deltaTone(line.delta_qty)}>{t("inventory.delta", { value: line.delta_qty || "0.000" })}</Text>
