@@ -605,3 +605,47 @@ class HaccpApiTests(TestCase):
         rows = resp.json()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["unit"], "C")
+
+    @override_settings(COOKOPS_API_BASE_URL="")
+    def test_inventory_sectors_returns_503_when_cookops_is_not_configured(self):
+        user = User.objects.create_user(username="inventory-op", password="test123")
+        Membership.objects.create(user=user, site=self.site, role=MembershipRole.OPERATOR)
+        self.client.force_authenticate(user=user)
+
+        resp = self.client.get("/api/inventory/sectors", {"site_code": self.site.code})
+
+        self.assertEqual(resp.status_code, 503)
+        self.assertEqual(resp.json()["detail"], "COOKOPS_API_BASE_URL is not configured.")
+
+    @patch("core.cookops_inventory_views._cookops_request_json")
+    def test_inventory_sectors_returns_502_for_malformed_cookops_sites_payload(self, cookops_mock):
+        user = User.objects.create_user(username="inventory-chef", password="test123")
+        Membership.objects.create(user=user, site=self.site, role=MembershipRole.CHEF)
+        self.client.force_authenticate(user=user)
+        cookops_mock.return_value = (200, ["bad-row"])
+
+        resp = self.client.get("/api/inventory/sectors", {"site_code": self.site.code})
+
+        self.assertEqual(resp.status_code, 502)
+        self.assertEqual(resp.json()["detail"], "Invalid CookOps sites payload.")
+
+    @patch("core.cookops_inventory_views._cookops_request_json")
+    def test_inventory_sectors_proxies_cookops_rows(self, cookops_mock):
+        user = User.objects.create_user(username="inventory-manager", password="test123")
+        Membership.objects.create(user=user, site=self.site, role=MembershipRole.MANAGER)
+        self.client.force_authenticate(user=user)
+        cookops_mock.side_effect = [
+            (200, [{"id": "cookops-site-1", "code": self.site.code}]),
+            (200, [{"id": "sector-1", "name": "Cuisine"}]),
+        ]
+
+        resp = self.client.get("/api/inventory/sectors", {"site_code": self.site.code})
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), [{"id": "sector-1", "name": "Cuisine"}])
+
+    @override_settings(COOKOPS_API_BASE_URL="cookops-production.up.railway.app")
+    def test_cookops_base_url_adds_https_when_scheme_is_missing(self):
+        from core.cookops_inventory_views import _cookops_base_url
+
+        self.assertEqual(_cookops_base_url(), "https://cookops-production.up.railway.app")

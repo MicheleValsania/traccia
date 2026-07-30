@@ -28,6 +28,8 @@ def _cookops_base_url() -> str:
     raw = str(getattr(settings, "COOKOPS_API_BASE_URL", "") or "").strip().rstrip("/")
     if not raw:
         raise CookOpsProxyError("COOKOPS_API_BASE_URL is not configured.", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+    if not raw.startswith(("http://", "https://")):
+        raw = f"https://{raw}"
     return raw
 
 
@@ -70,6 +72,8 @@ def _cookops_request_json(method: str, path: str, *, query: dict[str, str] | Non
         return exc.code, payload
     except urllib_error.URLError as exc:
         raise CookOpsProxyError(f"CookOps request failed: {exc.reason}", status_code=status.HTTP_502_BAD_GATEWAY) from exc
+    except ValueError as exc:
+        raise CookOpsProxyError(f"CookOps request failed: {exc}", status_code=status.HTTP_502_BAD_GATEWAY) from exc
 
 
 def _resolve_site_for_request(request, site_code: str, *, write: bool) -> tuple[Site | None, Response | None]:
@@ -91,6 +95,8 @@ def _resolve_cookops_site_id(site_code: str) -> tuple[str | None, Response | Non
     if not isinstance(payload, list):
         return None, Response({"detail": "Invalid CookOps sites payload."}, status=status.HTTP_502_BAD_GATEWAY)
     for row in payload:
+        if not isinstance(row, dict):
+            return None, Response({"detail": "Invalid CookOps sites payload."}, status=status.HTTP_502_BAD_GATEWAY)
         if str(row.get("code") or "").strip().upper() == site_code.strip().upper():
             return str(row.get("id") or ""), None
     return None, Response({"detail": f"CookOps site not found for site_code {site_code}."}, status=status.HTTP_404_NOT_FOUND)

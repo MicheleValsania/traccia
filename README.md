@@ -73,6 +73,16 @@ python manage.py runserver
 
 The backend reads environment variables from `backend/.env` when present.
 
+Inventory features also require CookOps connectivity from the Traccia backend:
+
+```dotenv
+COOKOPS_API_BASE_URL=https://<your-cookops-backend>
+COOKOPS_API_KEY=<shared-api-key-if-required>
+COOKOPS_TIMEOUT_SECONDS=12
+```
+
+Without `COOKOPS_API_BASE_URL`, the mobile inventory screens cannot load sectors, products, or sessions.
+
 ## Local mobile setup
 
 ```powershell
