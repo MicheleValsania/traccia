@@ -20,7 +20,8 @@
           "photosPermission": "Allow Traccia to access photos for HACCP workflows.",
           "cameraPermission": "Allow Traccia to capture images for HACCP workflows."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "ios": {
       "supportsTablet": true,
