@@ -35,7 +35,7 @@ function AppShell() {
   const [navHint, setNavHint] = useState("");
   const [siteCode, setSiteCode] = useState("");
   const [siteLoaded, setSiteLoaded] = useState(false);
-  const [username, setUsername] = useState("admin");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
   const [memberships, setMemberships] = useState<MeMembership[]>([]);

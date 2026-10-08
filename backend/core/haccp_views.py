@@ -48,6 +48,7 @@ from .models import (
     MembershipRole,
     OcrJob,
     OcrValidationStatus,
+    Organization,
     Site,
     TemperatureRegister,
     TemperatureReading,
@@ -75,6 +76,11 @@ def _membership_role(user, site: Site) -> str | None:
         return None
     if user.is_superuser:
         return MembershipRole.ADMIN
+    organization_id = getattr(user, "_traccia_organization_id", None)
+    if organization_id:
+        if site.organization_id != organization_id:
+            return None
+        return getattr(user, "_traccia_role", MembershipRole.AUDITOR)
     membership = Membership.objects.filter(user=user, site=site).first()
     return membership.role if membership else None
 
@@ -86,13 +92,43 @@ def _api_key_is_valid(request) -> bool:
     return request.headers.get("X-API-Key", "") == configured
 
 
+def _organization_id_for_request(request):
+    user = getattr(request, "user", None)
+    federated_id = getattr(user, "_traccia_organization_id", None)
+    if federated_id:
+        return federated_id
+    if not _api_key_is_valid(request):
+        return None
+    identifier = str(request.headers.get("X-Organization-ID", "") or "").strip()
+    parsed = _parse_uuid_or_none(identifier)
+    if not parsed:
+        return None
+    organization = Organization.objects.filter(Q(id=parsed) | Q(cookops_id=parsed), is_active=True).first()
+    legacy_cookops_id = _parse_uuid_or_none(getattr(settings, "COOKOPS_LEGACY_ORGANIZATION_ID", ""))
+    if not organization and legacy_cookops_id and parsed == legacy_cookops_id:
+        legacy = Organization.objects.filter(slug="chefside-history", cookops_id__isnull=True, is_active=True).first()
+        if legacy:
+            legacy.cookops_id = parsed
+            legacy.save(update_fields=["cookops_id", "updated_at"])
+            organization = legacy
+    return organization.id if organization else None
+
+
 def _ensure_access(request, site: Site | None = None, *, write: bool = False):
     if _api_key_is_valid(request):
+        organization_id = _organization_id_for_request(request)
+        if not organization_id:
+            return Response({"detail": "A valid X-Organization-ID header is required."}, status=status.HTTP_403_FORBIDDEN)
+        if site is not None and site.organization_id != organization_id:
+            return Response({"detail": "Site does not belong to this organization."}, status=status.HTTP_403_FORBIDDEN)
         return None
     if not getattr(request, "user", None) or not request.user.is_authenticated:
         return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
     if site is None:
         return None
+    organization_id = getattr(request.user, "_traccia_organization_id", None)
+    if organization_id and site.organization_id != organization_id:
+        return Response({"detail": "Site does not belong to this organization."}, status=status.HTTP_403_FORBIDDEN)
     role = _membership_role(request.user, site)
     allowed = SITE_WRITE_ROLES if write else SITE_READ_ROLES
     if role not in allowed:
@@ -110,12 +146,14 @@ def _parse_uuid_or_none(value: str | None):
         return None
 
 
-def _resolve_site(identifier) -> Site | None:
+def _resolve_site(identifier, organization_id=None) -> Site | None:
     ident = str(identifier or "").strip()
     if not ident:
         return None
     parsed_uuid = _parse_uuid_or_none(ident)
     query = Site.objects.all()
+    if organization_id:
+        query = query.filter(organization_id=organization_id)
     if parsed_uuid:
         hit = query.filter(Q(id=parsed_uuid) | Q(external_id=parsed_uuid)).first()
         if hit:
@@ -179,8 +217,16 @@ class HaccpSiteListView(APIView):
         auth_error = _ensure_access(request)
         if auth_error:
             return auth_error
+        organization_id = _organization_id_for_request(request)
         qs = Site.objects.all().order_by("code")
-        if getattr(request, "user", None) and request.user.is_authenticated and not _api_key_is_valid(request):
+        if organization_id:
+            qs = qs.filter(organization_id=organization_id)
+        if (
+            not organization_id
+            and getattr(request, "user", None)
+            and request.user.is_authenticated
+            and not _api_key_is_valid(request)
+        ):
             qs = qs.filter(memberships__user=request.user).distinct()
         return Response({"results": [serialize_site(site) for site in qs]}, status=status.HTTP_200_OK)
 
@@ -195,15 +241,16 @@ class HaccpSiteSyncView(APIView):
             return auth_error
         serializer = HaccpSiteSyncSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        organization_id = _organization_id_for_request(request)
         created = 0
         updated = 0
         rows = []
         for item in serializer.validated_data["sites"]:
             site = None
             if item.get("external_id"):
-                site = Site.objects.filter(external_id=item["external_id"]).first()
+                site = Site.objects.filter(organization_id=organization_id, external_id=item["external_id"]).first()
             if not site:
-                site = Site.objects.filter(code=item["code"]).first()
+                site = Site.objects.filter(organization_id=organization_id, code=item["code"]).first()
             if site:
                 updated += 1
                 site.external_id = item.get("external_id") or site.external_id
@@ -214,6 +261,7 @@ class HaccpSiteSyncView(APIView):
             else:
                 created += 1
                 site = Site.objects.create(
+                    organization_id=organization_id,
                     external_id=item.get("external_id"),
                     code=item["code"],
                     name=item["name"].strip(),
@@ -228,7 +276,7 @@ class HaccpAssetListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        site = _resolve_site(request.query_params.get("site"))
+        site = _resolve_site(request.query_params.get("site"), _organization_id_for_request(request))
         if not site:
             return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_access(request, site)
@@ -272,7 +320,7 @@ class HaccpSectorListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        site = _resolve_site(request.query_params.get("site"))
+        site = _resolve_site(request.query_params.get("site"), _organization_id_for_request(request))
         if not site:
             return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_access(request, site)
@@ -296,7 +344,7 @@ class HaccpSectorSyncView(APIView):
         updated = 0
         rows = []
         for item in serializer.validated_data["sectors"]:
-            site = _resolve_site(item["site"])
+            site = _resolve_site(item["site"], _organization_id_for_request(request))
             if not site:
                 return Response({"detail": f"Unknown site for sector {item['name']}."}, status=status.HTTP_400_BAD_REQUEST)
             sector = _resolve_sector(site, str(item.get("external_id") or ""), external_code=item.get("external_code", ""), name=item["name"])
@@ -391,7 +439,7 @@ class HaccpColdPointListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        site = _resolve_site(request.query_params.get("site"))
+        site = _resolve_site(request.query_params.get("site"), _organization_id_for_request(request))
         if not site:
             return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_access(request, site)
@@ -486,7 +534,7 @@ class HaccpColdPointSyncView(APIView):
         updated = 0
         rows = []
         for item in serializer.validated_data["cold_points"]:
-            site = _resolve_site(item["site"])
+            site = _resolve_site(item["site"], _organization_id_for_request(request))
             if not site:
                 return Response({"detail": f"Unknown site for cold point {item['name']}."}, status=status.HTTP_400_BAD_REQUEST)
             sector = _resolve_sector(site, str(item["sector"]))
@@ -527,7 +575,7 @@ class HaccpTemperatureReadingListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        site = _resolve_site(request.query_params.get("site"))
+        site = _resolve_site(request.query_params.get("site"), _organization_id_for_request(request))
         if not site:
             return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_access(request, site)
@@ -591,7 +639,7 @@ class HaccpScheduleListCreateView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        site = _resolve_site(request.query_params.get("site"))
+        site = _resolve_site(request.query_params.get("site"), _organization_id_for_request(request))
         if not site:
             return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_access(request, site)
@@ -608,7 +656,7 @@ class HaccpScheduleListCreateView(APIView):
         serializer = HaccpScheduleWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        site = _resolve_site(data["site"])
+        site = _resolve_site(data["site"], _organization_id_for_request(request))
         if not site:
             return Response({"detail": "Unknown site."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_access(request, site, write=True)
@@ -706,7 +754,7 @@ class HaccpOcrResultListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        site = _resolve_site(request.query_params.get("site"))
+        site = _resolve_site(request.query_params.get("site"), _organization_id_for_request(request))
         if not site:
             return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_access(request, site)
@@ -787,7 +835,7 @@ class HaccpTraceabilityValidationUpsertView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        site = _resolve_site(data.get("site"))
+        site = _resolve_site(data.get("site"), _organization_id_for_request(request))
         if not site:
             return Response({"detail": "site is required."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -884,7 +932,7 @@ class HaccpLifecycleEventListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        site = _resolve_site(request.query_params.get("site"))
+        site = _resolve_site(request.query_params.get("site"), _organization_id_for_request(request))
         if not site:
             return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_access(request, site)
@@ -920,7 +968,7 @@ class HaccpLabelProfileListCreateView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        site = _resolve_site(request.query_params.get("site"))
+        site = _resolve_site(request.query_params.get("site"), _organization_id_for_request(request))
         if not site:
             return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_access(request, site)
@@ -934,7 +982,7 @@ class HaccpLabelProfileListCreateView(APIView):
         serializer = HaccpLabelProfileWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        site = _resolve_site(data["site"])
+        site = _resolve_site(data["site"], _organization_id_for_request(request))
         if not site:
             return Response({"detail": "Unknown site."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_access(request, site, write=True)
@@ -1026,7 +1074,7 @@ class HaccpLabelSessionListCreateView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        site = _resolve_site(request.query_params.get("site"))
+        site = _resolve_site(request.query_params.get("site"), _organization_id_for_request(request))
         if not site:
             return Response({"detail": "site query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_access(request, site)
@@ -1040,7 +1088,7 @@ class HaccpLabelSessionListCreateView(APIView):
         serializer = HaccpLabelSessionWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        site = _resolve_site(data["site"])
+        site = _resolve_site(data["site"], _organization_id_for_request(request))
         if not site:
             return Response({"detail": "Unknown site."}, status=status.HTTP_400_BAD_REQUEST)
         auth_error = _ensure_access(request, site, write=True)

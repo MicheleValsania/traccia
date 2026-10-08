@@ -6,6 +6,10 @@ The target operating model is now split across two applications:
 - `Traccia`: local execution on site
 - `CookOps`: central governance, validation and traceability consolidation
 
+CookOps is also the identity authority. Traccia does not register independent
+organizations: the mobile app signs in through CookOps and the Traccia backend
+resolves the organization from that session.
+
 ## Current product role
 
 Traccia remains responsible for:
@@ -79,6 +83,10 @@ Inventory features also require CookOps connectivity from the Traccia backend:
 COOKOPS_API_BASE_URL=https://<your-cookops-backend>
 COOKOPS_API_KEY=<shared-api-key-if-required>
 COOKOPS_TIMEOUT_SECONDS=12
+COOKOPS_AUTH_BASE_URL=https://api.chefside.fr/api/v1
+COOKOPS_AUTH_TIMEOUT_SECONDS=8
+COOKOPS_AUTH_CACHE_SECONDS=60
+COOKOPS_LEGACY_ORGANIZATION_ID=<CookOps ChefSide organization UUID>
 ```
 
 Without `COOKOPS_API_BASE_URL`, the mobile inventory screens cannot load sectors, products, or sessions.
@@ -95,6 +103,7 @@ Recommended mobile env:
 
 ```dotenv
 EXPO_PUBLIC_API_BASE=https://<your-traccia-backend>.up.railway.app
+EXPO_PUBLIC_COOKOPS_API_BASE=https://api.chefside.fr/api/v1
 ```
 
 For local backend testing:
@@ -106,11 +115,16 @@ EXPO_PUBLIC_API_BASE=http://<YOUR-PC-IP>:8000
 ## Main backend capabilities currently exposed
 
 - authentication and site membership
+- CookOps federated authentication and organization isolation
 - HACCP adapter endpoints used by CookOps
 - local temperature execution endpoints
 - label profile and print endpoints
 - OCR result queue and validation endpoints
 - lifecycle and lot-related backend capabilities still present during transition
+
+The former local Django token login remains available temporarily for rollback
+and administrative recovery. The mobile client uses CookOps sessions. Internal
+CookOps calls must send both `X-API-Key` and `X-Organization-ID`.
 
 ## Documentation priority
 

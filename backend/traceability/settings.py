@@ -107,9 +107,17 @@ INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", os.getenv("TRACCIA_API_KEY", ""
 COOKOPS_API_BASE_URL = os.getenv("COOKOPS_API_BASE_URL", "").strip()
 COOKOPS_API_KEY = os.getenv("COOKOPS_API_KEY", "").strip()
 COOKOPS_TIMEOUT_SECONDS = int(os.getenv("COOKOPS_TIMEOUT_SECONDS", "12"))
+COOKOPS_AUTH_BASE_URL = os.getenv(
+    "COOKOPS_AUTH_BASE_URL",
+    "https://api.chefside.fr/api/v1",
+).strip()
+COOKOPS_AUTH_TIMEOUT_SECONDS = float(os.getenv("COOKOPS_AUTH_TIMEOUT_SECONDS", "8"))
+COOKOPS_AUTH_CACHE_SECONDS = int(os.getenv("COOKOPS_AUTH_CACHE_SECONDS", "60"))
+COOKOPS_LEGACY_ORGANIZATION_ID = os.getenv("COOKOPS_LEGACY_ORGANIZATION_ID", "").strip()
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "core.authentication.CookOpsAuthentication",
         "rest_framework.authentication.TokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],

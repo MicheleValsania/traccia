@@ -11,8 +11,28 @@ from django.utils import timezone
 User = get_user_model()
 
 
+class Organization(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    cookops_id = models.UUIDField(null=True, blank=True, unique=True)
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=120, unique=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Site(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="sites",
+    )
     external_id = models.UUIDField(null=True, blank=True, unique=True)
     code = models.CharField(max_length=24, unique=True)
     name = models.CharField(max_length=255)

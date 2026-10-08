@@ -37,26 +37,34 @@ function buildApiBase(): string {
 
 export const API_BASE = buildApiBase();
 
+function buildCookOpsApiBase(): string {
+  return (process.env.EXPO_PUBLIC_COOKOPS_API_BASE || "https://api.chefside.fr/api/v1")
+    .trim()
+    .replace(/\/+$/, "");
+}
+
+export const COOKOPS_API_BASE = buildCookOpsApiBase();
+
 function withAuth(token: string, init?: RequestInit): RequestInit {
   return {
     ...(init || {}),
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Token ${token}` } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...((init?.headers as Record<string, string>) || {}),
     },
   };
 }
 
-export async function loginToken(username: string, password: string): Promise<string> {
+export async function loginToken(email: string, password: string): Promise<string> {
   let response: Response;
   try {
     response = await fetch(
-      `${API_BASE}/auth/token`,
-      withAuth("", { method: "POST", body: JSON.stringify({ username, password }) }),
+      `${COOKOPS_API_BASE}/auth/login`,
+      withAuth("", { method: "POST", body: JSON.stringify({ email: email.trim(), password }) }),
     );
   } catch (error) {
-    throw new Error(translate("api.login_unreachable", { value: `${API_BASE}/auth/token` }));
+    throw new Error(translate("api.login_unreachable", { value: `${COOKOPS_API_BASE}/auth/login` }));
   }
   if (!response.ok) {
     let detail = "";

@@ -33,18 +33,20 @@ def _cookops_base_url() -> str:
     return raw
 
 
-def _cookops_headers() -> dict[str, str]:
+def _cookops_headers(authorization: str = "") -> dict[str, str]:
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
+    if authorization.startswith("Bearer "):
+        headers["Authorization"] = authorization
     api_key = str(getattr(settings, "COOKOPS_API_KEY", "") or "").strip()
-    if api_key:
+    if api_key and "Authorization" not in headers:
         headers["X-API-Key"] = api_key
     return headers
 
 
-def _cookops_request_json(method: str, path: str, *, query: dict[str, str] | None = None, payload: dict | None = None):
+def _cookops_request_json(method: str, path: str, *, query: dict[str, str] | None = None, payload: dict | None = None, authorization: str = ""):
     base = _cookops_base_url()
     url = f"{base}{path}"
     if query:
@@ -54,7 +56,7 @@ def _cookops_request_json(method: str, path: str, *, query: dict[str, str] | Non
     body = None
     if payload is not None:
         body = json.dumps(payload).encode("utf-8")
-    request = urllib_request.Request(url, data=body, method=method.upper(), headers=_cookops_headers())
+    request = urllib_request.Request(url, data=body, method=method.upper(), headers=_cookops_headers(authorization))
     timeout = int(getattr(settings, "COOKOPS_TIMEOUT_SECONDS", 12) or 12)
     try:
         with urllib_request.urlopen(request, timeout=timeout) as response:
@@ -88,8 +90,12 @@ def _resolve_site_for_request(request, site_code: str, *, write: bool) -> tuple[
     return site, None
 
 
-def _resolve_cookops_site_id(site_code: str) -> tuple[str | None, Response | None]:
-    code, payload = _cookops_request_json("GET", "/api/v1/sites/")
+def _request_authorization(request) -> str:
+    return str(request.META.get("HTTP_AUTHORIZATION", "") or "").strip()
+
+
+def _resolve_cookops_site_id(site_code: str, authorization: str = "") -> tuple[str | None, Response | None]:
+    code, payload = _cookops_request_json("GET", "/api/v1/sites/", authorization=authorization)
     if code >= 400:
         return None, Response(payload, status=code)
     if not isinstance(payload, list):
@@ -108,7 +114,7 @@ class InventorySupplierListView(APIView):
         _, error = _resolve_site_for_request(request, site_code, write=False)
         if error:
             return error
-        code, payload = _cookops_request_json("GET", "/api/v1/suppliers/")
+        code, payload = _cookops_request_json("GET", "/api/v1/suppliers/", authorization=_request_authorization(request))
         return Response(payload, status=code)
 
 
@@ -118,10 +124,11 @@ class InventorySectorListView(APIView):
         _, error = _resolve_site_for_request(request, site_code, write=False)
         if error:
             return error
-        cookops_site_id, site_error = _resolve_cookops_site_id(site_code)
+        authorization = _request_authorization(request)
+        cookops_site_id, site_error = _resolve_cookops_site_id(site_code, authorization)
         if site_error:
             return site_error
-        code, payload = _cookops_request_json("GET", "/api/v1/inventory/sectors/", query={"site": cookops_site_id})
+        code, payload = _cookops_request_json("GET", "/api/v1/inventory/sectors/", query={"site": cookops_site_id}, authorization=authorization)
         return Response(payload, status=code)
 
 
@@ -131,7 +138,8 @@ class InventoryStockPointListView(APIView):
         _, error = _resolve_site_for_request(request, site_code, write=False)
         if error:
             return error
-        cookops_site_id, site_error = _resolve_cookops_site_id(site_code)
+        authorization = _request_authorization(request)
+        cookops_site_id, site_error = _resolve_cookops_site_id(site_code, authorization)
         if site_error:
             return site_error
         code, payload = _cookops_request_json(
@@ -141,6 +149,7 @@ class InventoryStockPointListView(APIView):
                 "site": cookops_site_id,
                 "sector": request.query_params.get("sector_id", "").strip(),
             },
+            authorization=authorization,
         )
         return Response(payload, status=code)
 
@@ -151,7 +160,8 @@ class InventoryProductListView(APIView):
         _, error = _resolve_site_for_request(request, site_code, write=False)
         if error:
             return error
-        cookops_site_id, site_error = _resolve_cookops_site_id(site_code)
+        authorization = _request_authorization(request)
+        cookops_site_id, site_error = _resolve_cookops_site_id(site_code, authorization)
         if site_error:
             return site_error
         code, payload = _cookops_request_json(
@@ -163,6 +173,7 @@ class InventoryProductListView(APIView):
                 "category": request.query_params.get("category", "").strip(),
                 "supplier": request.query_params.get("supplier_id", "").strip(),
             },
+            authorization=authorization,
         )
         return Response(payload, status=code)
 
@@ -173,10 +184,11 @@ class InventorySessionListCreateView(APIView):
         _, error = _resolve_site_for_request(request, site_code, write=False)
         if error:
             return error
-        cookops_site_id, site_error = _resolve_cookops_site_id(site_code)
+        authorization = _request_authorization(request)
+        cookops_site_id, site_error = _resolve_cookops_site_id(site_code, authorization)
         if site_error:
             return site_error
-        code, payload = _cookops_request_json("GET", "/api/v1/inventory/sessions/", query={"site": cookops_site_id})
+        code, payload = _cookops_request_json("GET", "/api/v1/inventory/sessions/", query={"site": cookops_site_id}, authorization=authorization)
         return Response(payload, status=code)
 
     def post(self, request):
@@ -185,7 +197,8 @@ class InventorySessionListCreateView(APIView):
         _, error = _resolve_site_for_request(request, site_code, write=True)
         if error:
             return error
-        cookops_site_id, site_error = _resolve_cookops_site_id(site_code)
+        authorization = _request_authorization(request)
+        cookops_site_id, site_error = _resolve_cookops_site_id(site_code, authorization)
         if site_error:
             return site_error
         code, body = _cookops_request_json(
@@ -198,6 +211,7 @@ class InventorySessionListCreateView(APIView):
                 "count_scope": payload.get("count_scope") or "sector",
                 "source_app": "traccia_mobile",
             },
+            authorization=authorization,
         )
         return Response(body, status=code)
 
@@ -208,7 +222,7 @@ class InventorySessionDetailView(APIView):
         _, error = _resolve_site_for_request(request, site_code, write=False)
         if error:
             return error
-        code, payload = _cookops_request_json("GET", f"/api/v1/inventory/sessions/{session_id}/")
+        code, payload = _cookops_request_json("GET", f"/api/v1/inventory/sessions/{session_id}/", authorization=_request_authorization(request))
         return Response(payload, status=code)
 
 
@@ -224,6 +238,7 @@ class InventorySessionLinesBulkUpsertView(APIView):
             "POST",
             f"/api/v1/inventory/sessions/{session_id}/lines/bulk-upsert/",
             payload={"lines": lines},
+            authorization=_request_authorization(request),
         )
         return Response(body, status=code)
 
@@ -235,5 +250,5 @@ class InventorySessionCloseView(APIView):
         _, error = _resolve_site_for_request(request, site_code, write=True)
         if error:
             return error
-        code, body = _cookops_request_json("POST", f"/api/v1/inventory/sessions/{session_id}/close/", payload={})
+        code, body = _cookops_request_json("POST", f"/api/v1/inventory/sessions/{session_id}/close/", payload={}, authorization=_request_authorization(request))
         return Response(body, status=code)

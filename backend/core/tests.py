@@ -25,6 +25,7 @@ from core.models import (
     OcrJob,
     OcrJobStatus,
     OcrValidationStatus,
+    Organization,
     Site,
     TemperatureRegister,
     TemperatureReading,
@@ -34,13 +35,107 @@ from core.models import (
 User = get_user_model()
 
 
+class CookOpsFederatedAuthenticationTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.cookops_organization_id = uuid.uuid4()
+        self.organization = Organization.objects.create(
+            cookops_id=self.cookops_organization_id,
+            name="Tenant A",
+            slug="tenant-a",
+        )
+        self.other_organization = Organization.objects.create(
+            cookops_id=uuid.uuid4(),
+            name="Tenant B",
+            slug="tenant-b",
+        )
+        self.site = Site.objects.create(organization=self.organization, code="SITE-A", name="Site A")
+        self.other_site = Site.objects.create(organization=self.other_organization, code="SITE-B", name="Site B")
+        self.identity = {
+            "authenticated": True,
+            "organization": {
+                "id": str(self.cookops_organization_id),
+                "name": self.organization.name,
+                "slug": self.organization.slug,
+            },
+            "role": "owner",
+            "kind": "personal",
+            "user": {
+                "id": 42,
+                "email": "owner@example.com",
+                "name": "Owner Example",
+            },
+        }
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer cookops-session")
+
+    @patch("core.authentication._fetch_cookops_identity")
+    def test_profile_only_lists_sites_from_session_organization(self, identity_mock):
+        identity_mock.return_value = self.identity
+
+        response = self.client.get("/api/auth/me")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["organization_id"], str(self.organization.id))
+        self.assertEqual(
+            [row["site_code"] for row in response.json()["memberships"]],
+            [self.site.code],
+        )
+
+    @patch("core.authentication._fetch_cookops_identity")
+    def test_session_cannot_read_another_organization_site(self, identity_mock):
+        identity_mock.return_value = self.identity
+
+        response = self.client.get(f"/api/cold-sectors?site_code={self.other_site.code}")
+
+        self.assertEqual(response.status_code, 403)
+
+    @patch("core.authentication._fetch_cookops_identity")
+    def test_haccp_site_list_is_scoped_without_local_membership(self, identity_mock):
+        identity_mock.return_value = self.identity
+
+        response = self.client.get("/api/v1/haccp/sites/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [row["code"] for row in response.json()["results"]],
+            [self.site.code],
+        )
+
+
 @override_settings(INTERNAL_API_KEY="test-haccp-key")
 class HaccpApiTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.client.credentials(HTTP_X_API_KEY="test-haccp-key")
+        self.organization = Organization.objects.create(name="Test organization", slug="test-organization")
+        self.client.credentials(
+            HTTP_X_API_KEY="test-haccp-key",
+            HTTP_X_ORGANIZATION_ID=str(self.organization.id),
+        )
         self.external_site_id = uuid.uuid4()
-        self.site = Site.objects.create(external_id=self.external_site_id, code="MAIN", name="Main Site")
+        self.site = Site.objects.create(
+            organization=self.organization,
+            external_id=self.external_site_id,
+            code="MAIN",
+            name="Main Site",
+        )
+
+    def test_service_api_key_requires_organization_scope(self):
+        self.client.credentials(HTTP_X_API_KEY="test-haccp-key")
+
+        response = self.client.get("/api/v1/haccp/sites/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_service_api_key_cannot_claim_legacy_data_with_unknown_organization(self):
+        self.client.credentials(
+            HTTP_X_API_KEY="test-haccp-key",
+            HTTP_X_ORGANIZATION_ID=str(uuid.uuid4()),
+        )
+
+        response = self.client.get("/api/v1/haccp/sites/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIsNone(Organization.objects.get(slug="chefside-history").cookops_id)
 
     def test_capture_label_upload_only_creates_asset(self):
         user = User.objects.create_user(username="capture-op", password="test123")

@@ -1,5 +1,4 @@
 import base64
-import os
 from datetime import timedelta
 from decimal import Decimal
 
@@ -90,32 +89,35 @@ from .services import (
     upload_to_drive,
 )
 
-# In core/views.py, aggiungi questa view temporanea
-from django.http import JsonResponse
-
-def debug_env(request):
-    return JsonResponse({
-        "CLAUDE_ENABLED": os.getenv("CLAUDE_ENABLED", "NOT SET"),
-        "ANTHROPIC_API_KEY": "SET" if os.getenv("ANTHROPIC_API_KEY") else "NOT SET",
-        "ANTHROPIC_MODEL": os.getenv("ANTHROPIC_MODEL", "NOT SET"),
-        "GOOGLE_DRIVE_ENABLED": os.getenv("GOOGLE_DRIVE_ENABLED", "NOT SET"),
-        "GOOGLE_DRIVE_STRICT": os.getenv("GOOGLE_DRIVE_STRICT", "NOT SET"),
-        "GOOGLE_DRIVE_FOLDER_ID": os.getenv("GOOGLE_DRIVE_FOLDER_ID", "NOT SET"),
-        "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON": "SET" if os.getenv("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON") else "NOT SET",
-        "GOOGLE_DRIVE_OAUTH_CLIENT_ID": "SET" if os.getenv("GOOGLE_DRIVE_OAUTH_CLIENT_ID") else "NOT SET",
-        "GOOGLE_DRIVE_OAUTH_CLIENT_SECRET": "SET" if os.getenv("GOOGLE_DRIVE_OAUTH_CLIENT_SECRET") else "NOT SET",
-        "GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN": "SET" if os.getenv("GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN") else "NOT SET",
-    })
-    
 class SiteListCreateView(generics.ListCreateAPIView):
-    queryset = Site.objects.all().order_by("code")
     serializer_class = SiteSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        organization_id = getattr(self.request.user, "_traccia_organization_id", None)
+        if organization_id:
+            return Site.objects.filter(organization_id=organization_id).order_by("code")
+        if self.request.user.is_superuser:
+            return Site.objects.all().order_by("code")
+        return Site.objects.filter(memberships__user=self.request.user).distinct().order_by("code")
+
+    def perform_create(self, serializer):
+        organization_id = getattr(self.request.user, "_traccia_organization_id", None)
+        if not organization_id and not self.request.user.is_superuser:
+            from rest_framework.exceptions import PermissionDenied
+
+            raise PermissionDenied("An organization-scoped session is required to create a site.")
+        serializer.save(organization_id=organization_id)
 
 
 def _membership_role(user, site: Site) -> str | None:
     if user.is_superuser:
         return MembershipRole.ADMIN
+    organization_id = getattr(user, "_traccia_organization_id", None)
+    if organization_id:
+        if site.organization_id != organization_id:
+            return None
+        return getattr(user, "_traccia_role", MembershipRole.AUDITOR)
     membership = Membership.objects.filter(user=user, site=site).first()
     return membership.role if membership else None
 
@@ -1480,11 +1482,19 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        memberships = Membership.objects.filter(user=request.user).select_related("site")
-        membership_rows = [
-            {"site_code": m.site.code, "site_name": m.site.name, "role": m.role}
-            for m in memberships
-        ]
+        organization_id = getattr(request.user, "_traccia_organization_id", None)
+        if organization_id:
+            role = getattr(request.user, "_traccia_role", MembershipRole.AUDITOR)
+            membership_rows = [
+                {"site_code": site.code, "site_name": site.name, "role": role}
+                for site in Site.objects.filter(organization_id=organization_id).order_by("name")
+            ]
+        else:
+            memberships = Membership.objects.filter(user=request.user).select_related("site")
+            membership_rows = [
+                {"site_code": m.site.code, "site_name": m.site.name, "role": m.role}
+                for m in memberships
+            ]
         if request.user.is_superuser:
             existing_codes = {row["site_code"] for row in membership_rows}
             for site in Site.objects.all().order_by("name"):
@@ -1495,6 +1505,7 @@ class MeView(APIView):
             {
                 "username": request.user.username,
                 "is_superuser": request.user.is_superuser,
+                "organization_id": str(organization_id) if organization_id else None,
                 "memberships": membership_rows,
             }
         )

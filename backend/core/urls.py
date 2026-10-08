@@ -58,7 +58,6 @@ from .views import (
     TemperatureRouteSequenceView,
     TemperatureRouteStepListCreateView,
     TokenLoginView,
-    debug_env,
 )
 
 urlpatterns = [
@@ -90,7 +89,6 @@ urlpatterns = [
     path("inventory/sessions/<uuid:session_id>", InventorySessionDetailView.as_view(), name="inventory-session-detail"),
     path("inventory/sessions/<uuid:session_id>/lines/bulk-upsert", InventorySessionLinesBulkUpsertView.as_view(), name="inventory-session-lines-bulk-upsert"),
     path("inventory/sessions/<uuid:session_id>/close", InventorySessionCloseView.as_view(), name="inventory-session-close"),
-    path("debug/env", debug_env, name="debug-env"),
     path("auth/token", TokenLoginView.as_view(), name="auth-token"),
     path("auth/me", MeView.as_view(), name="auth-me"),
     path("sites", SiteListCreateView.as_view(), name="site-list-create"),
