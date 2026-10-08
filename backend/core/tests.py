@@ -7,6 +7,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from core.authentication import _fetch_cookops_identity
 from core.models import (
     Asset,
     AssetType,
@@ -67,6 +68,16 @@ class CookOpsFederatedAuthenticationTests(TestCase):
             },
         }
         self.client.credentials(HTTP_AUTHORIZATION="Bearer cookops-session")
+
+    @override_settings(COOKOPS_AUTH_BASE_URL="https://cookops.test/api/v1")
+    @patch("core.authentication.urlrequest.urlopen")
+    def test_identity_check_identifies_traccia_backend(self, urlopen_mock):
+        urlopen_mock.return_value.__enter__.return_value.read.return_value = b'{"authenticated": true}'
+
+        _fetch_cookops_identity("unique-session-token")
+
+        outbound_request = urlopen_mock.call_args.args[0]
+        self.assertEqual(outbound_request.get_header("User-agent"), "Traccia-Backend/1.0")
 
     @patch("core.authentication._fetch_cookops_identity")
     def test_profile_only_lists_sites_from_session_organization(self, identity_mock):

@@ -38,7 +38,11 @@ def _fetch_cookops_identity(token: str) -> dict:
     req = urlrequest.Request(
         f"{base_url}/auth/status",
         method="GET",
-        headers={"Accept": "application/json", "Authorization": f"Bearer {token}"},
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "Traccia-Backend/1.0",
+        },
     )
     try:
         with urlrequest.urlopen(req, timeout=settings.COOKOPS_AUTH_TIMEOUT_SECONDS) as response:
