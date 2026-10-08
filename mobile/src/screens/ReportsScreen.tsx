@@ -1,5 +1,7 @@
 import React from "react";
-import { Linking, Pressable, Text, View } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import { Pressable, Text, View } from "react-native";
 
 import { AlertResolutionReason, fetchAlerts, reportCsvUrl, reportPdfUrl, reportTemperatureCsvUrl, updateAlertStatus } from "../api";
 import { useI18n } from "../i18n";
@@ -102,10 +104,40 @@ export function ReportsScreen(props: Props) {
   const { t } = useI18n();
   const [alerts, setAlerts] = React.useState<AlertItem[]>([]);
   const [loadingAlerts, setLoadingAlerts] = React.useState(false);
+  const [downloadingReport, setDownloadingReport] = React.useState<string | null>(null);
   const [error, setError] = React.useState("");
-  const csv = reportCsvUrl(props.siteCode, props.token);
-  const pdf = reportPdfUrl(props.siteCode, props.token);
-  const tempCsv = reportTemperatureCsvUrl(props.siteCode, props.token);
+  const csv = reportCsvUrl(props.siteCode);
+  const pdf = reportPdfUrl(props.siteCode);
+  const tempCsv = reportTemperatureCsvUrl(props.siteCode);
+
+  async function openAuthenticatedReport(url: string, filename: string, mimeType: string) {
+    if (!props.token || !FileSystem.cacheDirectory) return;
+    setDownloadingReport(filename);
+    setError("");
+    try {
+      const result = await FileSystem.downloadAsync(url, `${FileSystem.cacheDirectory}${filename}`, {
+        headers: {
+          Accept: mimeType,
+          Authorization: `Bearer ${props.token}`,
+        },
+      });
+      if (result.status < 200 || result.status >= 300) {
+        throw new Error(`HTTP ${result.status}`);
+      }
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error(t("reports.sharing_unavailable"));
+      }
+      await Sharing.shareAsync(result.uri, {
+        dialogTitle: t("reports.share_title"),
+        mimeType,
+      });
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : "";
+      setError(t("reports.export_error", { detail: detail ? ` (${detail})` : "" }));
+    } finally {
+      setDownloadingReport(null);
+    }
+  }
 
   async function refreshAlerts() {
     if (!props.token) return;
@@ -194,14 +226,14 @@ export function ReportsScreen(props: Props) {
       {!alerts.length ? <Text>{t("reports.no_alerts")}</Text> : null}
 
       <Text style={appStyles.sectionTitle}>{t("reports.report")}</Text>
-      <Pressable style={({ pressed }) => [appStyles.linkButton, pressed ? appStyles.tabButtonPressed : undefined]} onPress={() => Linking.openURL(csv)} disabled={!props.token}>
-        <Text style={appStyles.linkText}>{t("reports.open_csv")}</Text>
+      <Pressable style={({ pressed }) => [appStyles.linkButton, pressed ? appStyles.tabButtonPressed : undefined]} onPress={() => void openAuthenticatedReport(csv, "lots_report.csv", "text/csv")} disabled={!props.token || !!downloadingReport}>
+        <Text style={appStyles.linkText}>{downloadingReport === "lots_report.csv" ? t("reports.preparing") : t("reports.open_csv")}</Text>
       </Pressable>
-      <Pressable style={({ pressed }) => [appStyles.linkButton, pressed ? appStyles.tabButtonPressed : undefined]} onPress={() => Linking.openURL(pdf)} disabled={!props.token}>
-        <Text style={appStyles.linkText}>{t("reports.open_pdf")}</Text>
+      <Pressable style={({ pressed }) => [appStyles.linkButton, pressed ? appStyles.tabButtonPressed : undefined]} onPress={() => void openAuthenticatedReport(pdf, "lots_report.pdf", "application/pdf")} disabled={!props.token || !!downloadingReport}>
+        <Text style={appStyles.linkText}>{downloadingReport === "lots_report.pdf" ? t("reports.preparing") : t("reports.open_pdf")}</Text>
       </Pressable>
-      <Pressable style={({ pressed }) => [appStyles.linkButton, pressed ? appStyles.tabButtonPressed : undefined]} onPress={() => Linking.openURL(tempCsv)} disabled={!props.token}>
-        <Text style={appStyles.linkText}>{t("reports.open_temp_csv")}</Text>
+      <Pressable style={({ pressed }) => [appStyles.linkButton, pressed ? appStyles.tabButtonPressed : undefined]} onPress={() => void openAuthenticatedReport(tempCsv, "temperature_register.csv", "text/csv")} disabled={!props.token || !!downloadingReport}>
+        <Text style={appStyles.linkText}>{downloadingReport === "temperature_register.csv" ? t("reports.preparing") : t("reports.open_temp_csv")}</Text>
       </Pressable>
       {error ? <Text style={appStyles.error}>{error}</Text> : null}
     </View>

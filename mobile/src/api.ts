@@ -496,16 +496,16 @@ export async function requestLabelPrint(params: {
   return body.print_job;
 }
 
-export function reportCsvUrl(siteCode: string, token: string): string {
-  return `${API_BASE}/reports/lots.csv?site_code=${siteCode}&token=${token}`;
+export function reportCsvUrl(siteCode: string): string {
+  return `${API_BASE}/reports/lots.csv?site_code=${encodeURIComponent(siteCode)}`;
 }
 
-export function reportPdfUrl(siteCode: string, token: string): string {
-  return `${API_BASE}/reports/lots.pdf?site_code=${siteCode}&token=${token}`;
+export function reportPdfUrl(siteCode: string): string {
+  return `${API_BASE}/reports/lots.pdf?site_code=${encodeURIComponent(siteCode)}`;
 }
 
-export function reportTemperatureCsvUrl(siteCode: string, token: string): string {
-  return `${API_BASE}/reports/temperatures.csv?site_code=${siteCode}&token=${token}`;
+export function reportTemperatureCsvUrl(siteCode: string): string {
+  return `${API_BASE}/reports/temperatures.csv?site_code=${encodeURIComponent(siteCode)}`;
 }
 
 export async function fetchAlerts(token: string, siteCode: string): Promise<AlertItem[]> {
